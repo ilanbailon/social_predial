@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Geoportal Predial — Vista simple</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root{
+      --brand:#0f172a; --accent:#0ea5e9; --accent-dark:#0369a1;
+      --panel-bg:#f8fafc; --card:#ffffff; --line:#e2e8f0;
+      --predio:#0ea5e9; --comunidad:#22c55e; --otros:#a855f7; --highlight:#e11d48;
+      --social:#f59e0b;
+      --text:#0f172a;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;overflow:hidden;color:var(--text)}
+    header{
+      display:flex;gap:12px;align-items:center;justify-content:space-between;
+      padding:10px 16px;background:var(--brand);color:#fff;position:relative;z-index:5000;
+      box-shadow:0 2px 10px rgba(0,0,0,.25);
+    }
+    header .title{font-weight:700;letter-spacing:.3px}
+    #centerControls{flex:1;display:flex;justify-content:center;position:relative}
+    #searchWrap{position:relative;width:min(560px,92%)}
+    #searchBox{
+      width:100%;padding:10px 14px;border-radius:24px;border:none;outline:none;
+      font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.15) inset, 0 1px 0 rgba(255,255,255,.1);
+      color:var(--text);
+    }
+    #suggestions{
+      position:absolute;left:0;right:0;top:44px;background:#fff;
+      border:1px solid var(--line);border-radius:10px;z-index:6000;
+      max-height:260px;overflow:auto;display:none;color:var(--text);
+    }
+    #suggestions.active{display:block}
+    #suggestions div{padding:8px 10px;cursor:pointer}
+    #suggestions div:hover{background:#f1f5f9}
+
+    #rightControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    select,button,input{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px}
+    select,input{background:#fff;border-color:var(--line);color:var(--text)}
+    input.small{width:120px}
+    .btn{background:var(--accent);color:#fff;cursor:pointer}
+    .btn:hover{background:var(--accent-dark)}
+    .ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35)}
+    .ghost:hover{border-color:#fff}
+
+    /* Layout PC por defecto */
+    #split{display:flex;height:calc(100% - 60px);min-height:300px}
+    #leftPane{flex-basis:60%;position:relative;background:#000}
+    #rightPane{flex:1;background:var(--panel-bg);border-left:1px solid var(--line);overflow:auto}
+    #gutter{width:6px;cursor:col-resize;background:linear-gradient(90deg,transparent,rgba(0,0,0,.08),transparent)}
+    #map{position:absolute;inset:0}
+
+    /* Móvil */
+    @media (max-width: 900px){
+      #split{flex-direction:column}
+      #leftPane{flex-basis:auto;height:56vh}
+      #rightPane{height:44vh;border-left:none;border-top:1px solid var(--line)}
+      #gutter{display:none}
+      #rightControls{display:none}
+      .mobile-actions{display:flex}
+    }
+
+    .panel{padding:16px}
+    h3{margin:8px 0 12px;color:var(--accent-dark)}
+    .block{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .label{font-weight:700;margin-bottom:4px}
+    .textblock{white-space:pre-line;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px}
+    .area-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin:10px 0;transition: box-shadow .2s, background .2s, border-left-color .2s}
+    .area-card h4{margin:0 0 6px;color:var(--accent)}
+    .area-card.has-social{border-left:6px solid var(--social); background:#fff8eb}
+    .area-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer}
+    .pill:hover{border-color:var(--accent)}
+    .muted{color:#64748b;font-size:12px}
+    .badge{background:#eef2ff;border:1px solid var(--line);border-radius:999px;padding:4px 8px;font-size:12px}
+
+    input,textarea{width:100%;padding:6px;border:1px solid var(--line);border-radius:8px;color:var(--text)}
+    .btn-small{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+    .btn-small:hover{border-color:var(--accent)}
+    td.clickable{cursor:pointer;text-decoration:underline}
+
+    /* Botones del mapa */
+    .map-btns{
+      position:absolute; left:10px; bottom:10px; z-index:4500; display:flex; flex-direction:column; gap:8px;
+    }
+    .map-btn{
+      background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)
+    }
+    .map-btn:hover{border-color:var(--accent)}
+
+    /* Acciones móviles */
+    .mobile-actions{
+      position:absolute; right:10px; bottom:10px; z-index:4500; display:none; gap:8px;
+    }
+    .mobile-actions .map-btn{padding:8px 12px}
+
+    /* Modal genérico */
+    .modal-back{
+      position:fixed; inset:60px 0 0 0; display:none;
+      align-items:center; justify-content:center; background:rgba(0,0,0,.25); z-index:7000;
+    }
+    .modal{
+      width:min(920px,94vw); background:#fff; border-radius:12px; padding:12px;
+      box-shadow:0 20px 40px rgba(0,0,0,.25);
+    }
+    table.list{border-collapse:collapse;width:100%}
+    table.list th, table.list td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;background:#fff}
+    table.list th{background:#f6f6f6}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px}
+    .flash { animation: flash 1s ease-out 1; }
+    @keyframes flash { 0% { box-shadow:0 0 0 rgba(14,165,233,0); background:#fff; }
+      20%{ box-shadow:0 0 0 6px rgba(14,165,233,.15); background:#e0f2fe; }
+      100%{ box-shadow:0 0 0 rgba(14,165,233,0); background:#fff; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">Geoportal Predial</div>
+
+    <div id="centerControls">
+      <div id="searchWrap">
+        <input id="searchBox" type="text" placeholder="🔍 Buscar cod_prel, cod_mtc o titular…" autocomplete="off" />
+        <div id="suggestions"></div>
+      </div>
+    </div>
+
+    <div id="rightControls">
+      <select id="filterComunidad"><option value="">Comunidad (todas)</option></select>
+      <select id="filterGrupo">
+        <option value="">Grupo (todos)</option>
+        <option value="1">1</option><option value="2">2</option>
+        <option value="3">3</option><option value="4">4</option>
+        <option value="1er_entregable">1er_entregable</option>
+      </select>
+
+      <!-- Filtro por prog_ini (rango) -->
+      <input id="progDesde" class="small" type="text" placeholder="Prog. desde (ej. 89+000)">
+      <input id="progHasta" class="small" type="text" placeholder="Prog. hasta (ej. 90+000)">
+
+      <button class="btn" id="btnFiltrar">Filtrar</button>
+      <button class="ghost" id="btnReset">Reset</button>
+      <button class="ghost" id="btnLista">📋 Lista por comunidad</button>
+      <button class="ghost" id="btnObs">👁 Observados</button>
+    </div>
+  </header>
+
+  <div id="split">
+    <section id="leftPane">
+      <div id="map"></div>
+
+      <!-- Acciones (ubicación + móviles) -->
+      <div class="map-btns">
+        <button id="btnLocate" class="map-btn" title="Ubicarme">📍</button>
+      </div>
+      <div class="mobile-actions">
+        <button id="btnLista_m" class="map-btn">📋 Lista</button>
+        <button id="btnObs_m" class="map-btn">👁 Obs.</button>
+      </div>
+    </section>
+
+    <div id="gutter" title="Arrastra para redimensionar"></div>
+
+    <section id="rightPane">
+      <div class="panel">
+        <h3>Detalle del predio</h3>
+
+        <!-- Datos comunes (solo lectura) -->
+        <div id="commonBlock" class="block" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="label">Datos:</div>
+              <span id="unionCount" class="badge"></span>
+            </div>
+          </div>
+
+          <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div><div class="label">Código MTC</div><div id="cm_mtc" class="textblock"></div></div>
+            <div><div class="label">Comunidad</div><div id="cm_comunidad" class="textblock"></div></div>
+            <div style="grid-column:1/-1"><div class="label">Titular</div><div id="cm_titular" class="textblock"></div></div>
+            <div style="grid-column:1/-1"><div class="label">DNI / RUC</div><div id="cm_dni" class="textblock"></div></div>
+            <div style="grid-column:1/-1"><div class="label">Contacto</div><div id="cm_contacto" class="textblock"></div></div>
+            <div><div class="label">Condición</div><div id="cm_condicion" class="textblock"></div></div>
+            <div><div class="label">Tipo</div><div id="cm_tipo" class="textblock"></div></div>
+            <div><div class="label">Responsable</div><div id="cm_responsable" class="textblock"></div></div>
+            <div><div class="label">Grupo</div><div id="cm_grupo" class="textblock"></div></div>
+            <div><div class="label">Fecha elaboración</div><div id="cm_fecha" class="textblock"></div></div>
+          </div>
+        </div>
+
+        <!-- Áreas afectadas (con edición SOLO de comentario_social) -->
+        <div id="areasWrap" class="block" style="display:none">
+          <div class="label">Áreas afectadas</div>
+          <div id="areasList"></div>
+        </div>
+
+        <div id="emptyHint" class="muted">Selecciona un polígono o busca por código/titular.</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Modal: Lista por Comunidad -->
+  <div id="modalListBack" class="modal-back">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0">Lista por comunidad</h3>
+        <button class="btn-small" id="btnCloseList">✕</button>
+      </div>
+      <div class="row">
+        <label>Comunidad:
+          <select id="listComunidad" style="min-width:260px"></select>
+        </label>
+        <label>Filtrar texto:
+          <input id="listFilter" type="text" placeholder="Filtrar por MTC, cod_prel o titular…" style="min-width:260px">
+        </label>
+        <button class="btn" id="btnLoadList">Cargar</button>
+      </div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="list" id="tblList">
+          <thead>
+            <tr>
+              <th>Comunidad</th>
+              <th>Código MTC</th>
+              <th>cod_prel</th>
+              <th>Titular</th>
+              <th>Seleccionar</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="5" class="muted">Selecciona comunidad y pulsa “Cargar”.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Observados -->
+  <div id="modalObsBack" class="modal-back">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0">Códigos observados</h3>
+        <button class="btn-small" id="btnCloseObs">✕</button>
+      </div>
+      <div class="row">
+        <label>Filtrar texto:
+          <input id="obsFilter" type="text" placeholder="Filtrar por comunidad, MTC, cod_prel o titular…" style="min-width:260px">
+        </label>
+        <button class="btn" id="btnReloadObs">Recargar</button>
+      </div>
+      <div style="max-height:60vh;overflow:auto">
+        <table class="list" id="tblObs">
+          <thead>
+            <tr>
+              <th>Comunidad</th>
+              <th>Código MTC</th>
+              <th>cod_prel</th>
+              <th>Titular</th>
+              <th>Observación</th>
+              <th>Seleccionar</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+/** ====== CONFIG ====== **/
+const SUPABASE_URL = "https://wbzxbfqowlfmmkwqeyam.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndienhiZnFvd2xmbW1rd3FleWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5ODUwMDQsImV4cCI6MjA3MjU2MTAwNH0.mJJ7yID73tUerWE_aiNw3ZE4o-Q9YrT39YN-iS2CksA";
+const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/** ====== HELPERS ====== **/
+function getVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function isPredios(v){ return (v||"").toLowerCase()==="predios" || (v||"").toLowerCase()==="predio"; }
+function isComunidad(v){ return (v||"").toLowerCase()==="comunidad"; }
+function cap(r){ return (r||"").replace(/\b\w/g,m=>m.toUpperCase()); }
+function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+function hasSocial(p){ return !!(p?.comentario_social && String(p.comentario_social).trim().length>0); }
+/* Convierte "89+417" -> 89417; "89417" -> 89417; otros => null */
+function parseProg(v){
+  if(v==null) return null;
+  const digits = String(v).replace(/\D+/g,'');
+  if(!digits) return null;
+  return Number(digits);
+}
+
+/** ====== MAPA ====== **/
+const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([-15.5, -70.1], 15);
+L.control.attribution({ prefix:false }).addTo(map);
+L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom:21, attribution:'© Google' }).addTo(map);
+
+const baseStyle    = { color:getVar('--predio'),    weight:2, fillOpacity:0.20 };
+const commStyle    = { color:getVar('--comunidad'), weight:2, fillOpacity:0.20 };
+const otherStyle   = { color:getVar('--otros'),     weight:2, fillOpacity:0.20 };
+const hiStyle      = { color:getVar('--highlight'), weight:3, fillOpacity:0.35 };
+const socialStyle  = { color:getVar('--social'),    weight:3, fillOpacity:0.30 };
+
+function styleByProps(p){
+  if(hasSocial(p)) return socialStyle;
+  if(isComunidad(p.tipo)) return commStyle;
+  if(isPredios(p.tipo)) return baseStyle;
+  return otherStyle;
+}
+
+let selectedCodPrel = null;
+let currentUnirId = null;
+
+const capaPredio    = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).addTo(map);
+const capaComunidad = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).addTo(map);
+const capaOtros     = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).addTo(map);
+
+L.control.layers(null, { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros }).addTo(map);
+
+/** ====== GEOLOCALIZACIÓN (botón abajo-izquierda) ====== **/
+let locateMarker = null, locateCircle = null;
+document.getElementById('btnLocate').addEventListener('click', ()=>{
+  if(!navigator.geolocation){ alert("La geolocalización no está disponible en este navegador."); return; }
+  navigator.geolocation.getCurrentPosition((pos)=>{
+    const lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy||0;
+    const latlng = [lat, lon];
+    if(!locateMarker){
+      locateMarker = L.marker(latlng, { title:"Tu ubicación" }).addTo(map);
+      locateCircle = L.circle(latlng, { radius: acc, color:"#555", fillOpacity:0.10 }).addTo(map);
+    }else{
+      locateMarker.setLatLng(latlng);
+      locateCircle.setLatLng(latlng).setRadius(acc);
+    }
+    map.fitBounds(L.latLngBounds([latlng, latlng]).pad(0.05));
+  }, (err)=>{
+    alert("No se pudo obtener la ubicación: " + (err.message||""));
+  }, { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+});
+
+/** ====== CARGA DE DATOS ====== **/
+async function loadAllPredios(){
+  const { data, error } = await client
+    .from("cod_pred")
+    .select("cod_prel,unir,comunidad,condicion,grupo,codigo_mtc,titular,tipo,geom,dni_ruc,contacto,responsable,fecha_elab,comentario_social,area,prog_ini,prog_fin,lado");
+  if(error){ console.error(error); return; }
+
+  renderFeatures(data||[]);
+}
+
+function renderFeatures(rows){
+  capaPredio.clearLayers(); capaComunidad.clearLayers(); capaOtros.clearLayers();
+
+  rows.forEach(p=>{
+    if(!p.geom) return;
+    const f = { type:"Feature", geometry:p.geom, properties:p };
+    const layer = L.geoJSON(f, {
+      style: ()=> styleByProps(p),
+      onEachFeature: (_, lyr)=>{
+        lyr.on("click", () => { selectedCodPrel = p.cod_prel; showGroup(p.unir); });
+      }
+    });
+    if(isComunidad(p.tipo)) layer.addTo(capaComunidad);
+    else if(isPredios(p.tipo)) layer.addTo(capaPredio);
+    else layer.addTo(capaOtros);
+  });
+
+  const bounds = capaPredio.getLayers().length ? capaPredio.getBounds()
+               : capaComunidad.getLayers().length ? capaComunidad.getBounds()
+               : capaOtros.getLayers().length ? capaOtros.getBounds() : null;
+  if(bounds) map.fitBounds(bounds);
+}
+
+/** ====== DESTACAR GRUPO (UNIR) ====== **/
+function highlightGroup(unirId, zoomTo=true){
+  let groupBounds = null;
+  const restyle = (grp)=>{
+    grp.eachLayer(l=>{
+      const props = l.feature?.properties;
+      const setLayer = (ly, pr)=>{
+        const match = pr.unir === unirId;
+        ly.setStyle( match ? hiStyle : styleByProps(pr) );
+        if(match){ ly.bringToFront(); if(ly.getBounds){ groupBounds = groupBounds ? groupBounds.extend(ly.getBounds()) : ly.getBounds(); } }
+      };
+      if(props) setLayer(l, props);
+      l.eachLayer?.((sub)=>{ if(sub.feature?.properties) setLayer(sub, sub.feature.properties); });
+    });
+  };
+  [capaPredio, capaComunidad, capaOtros].forEach(restyle);
+  if(groupBounds && zoomTo) map.fitBounds(groupBounds, { padding:[40,40], maxZoom:20 });
+}
+
+/** ====== UI PANEL ====== **/
+const blockCommon  = document.getElementById("commonBlock");
+const wrapAreas    = document.getElementById("areasWrap");
+const listAreas    = document.getElementById("areasList");
+const emptyHint    = document.getElementById("emptyHint");
+const unionCount   = document.getElementById("unionCount");
+
+function setText(id, val){ document.getElementById(id).textContent = val ?? ""; }
+
+async function showGroup(unirId){
+  const { data, error } = await client.from("cod_pred").select("*").eq("unir", unirId);
+  if(error || !data?.length){ return; }
+
+  currentUnirId = unirId;
+  highlightGroup(unirId, true);
+  unionCount.textContent = `Se unen: ${data.length} ${data.length===1?'código':'códigos'}`;
+
+  const c = data[0];
+
+  blockCommon.style.display = "";
+  wrapAreas.style.display = "";
+  emptyHint.style.display = "none";
+
+  setText("cm_mtc", c.codigo_mtc || "");
+  setText("cm_titular", c.titular || "");
+  setText("cm_dni", c.dni_ruc || "");
+  setText("cm_contacto", c.contacto || "");
+  setText("cm_comunidad", c.comunidad || "");
+  setText("cm_condicion", c.condicion || "");
+  setText("cm_tipo", (c.tipo||"predios"));
+  setText("cm_responsable", cap(c.responsable||""));
+  setText("cm_grupo", c.grupo || "");
+  setText("cm_fecha", c.fecha_elab ? String(c.fecha_elab).slice(0,10) : "");
+
+  // Tarjetas de áreas (edición ÚNICA de comentario_social)
+  listAreas.innerHTML = "";
+  (data||[]).forEach(p=>{
+    const hasCom = hasSocial(p);
+    const card = document.createElement("div");
+    card.className = "area-card" + (hasCom ? " has-social" : "");
+    card.setAttribute("data-cod", p.cod_prel);
+    const cs = p.comentario_social ?? "";
+    card.innerHTML = `
+      <h4>${p.cod_prel}</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><b>Área:</b> ${p.area ?? ""}</div>
+        <div><b>Prog:</b> ${p.prog_ini ?? ""} - ${p.prog_fin ?? ""}</div>
+      </div>
+      <div style="margin:8px 0;"><b>Lado:</b> ${p.lado ?? ""}</div>
+
+      <div style="margin-top:6px">
+        <div class="label">Comentario social (editable)</div>
+        <textarea rows="3" data-for="${p.cod_prel}" placeholder="Añadir comentario social…">${cs}</textarea>
+        <div class="area-actions" style="margin-top:8px">
+          <button class="pill" data-cod="${p.cod_prel}" data-action="focus">Enfocar</button>
+          <button class="pill" data-cod="${p.cod_prel}" data-action="save_cs">Guardar comentario</button>
+        </div>
+      </div>
+    `;
+    listAreas.appendChild(card);
+  });
+
+  listAreas.querySelectorAll("button").forEach(btn=>{
+    btn.addEventListener("click", async (e)=>{
+      const cod = e.currentTarget.dataset.cod;
+      const action = e.currentTarget.dataset.action;
+      if(action==="focus"){ selectedCodPrel = cod; focusByCodPrel(cod); highlightGroup(currentUnirId, false); }
+      if(action==="save_cs"){
+        const ta = listAreas.querySelector(`textarea[data-for="${cod}"]`);
+        const val = (ta?.value||"").trim();
+        const { error:err } = await client.from("cod_pred").update({ comentario_social: (val===""? null : val) }).eq("cod_prel", cod);
+        if(err){ alert("❌ Error al guardar comentario: "+err.message); return; }
+        alert("✅ Comentario guardado");
+        await loadAllPredios();
+        await showGroup(currentUnirId);
+      }
+    });
+  });
+}
+
+function focusByCodPrel(cod){
+  let found = null;
+  [capaPredio, capaComunidad, capaOtros].forEach(group=>{
+    group.eachLayer(l=>{
+      if(l.feature?.properties?.cod_prel === cod) found = l;
+      l.eachLayer?.((sub)=>{ if(sub.feature?.properties?.cod_prel === cod) found = sub; });
+    });
+  });
+  if(found){
+    const b = found.getBounds?.();
+    if(b) map.fitBounds(b, { maxZoom: 20, padding:[40,40] });
+  }
+}
+
+/** ====== BUSCADOR (cod_prel, cod_mtc, titular) ====== **/
+const searchBox = document.getElementById("searchBox");
+const suggestions = document.getElementById("suggestions");
+let debounceTimer = null;
+
+searchBox.addEventListener("input", (e)=>{
+  const q = e.target.value.trim();
+  clearTimeout(debounceTimer);
+  if(q.length < 2){ suggestions.classList.remove("active"); suggestions.innerHTML=""; return; }
+  debounceTimer = setTimeout(()=> runSuggest(q), 250);
+});
+searchBox.addEventListener("blur", ()=> setTimeout(()=>{ suggestions.classList.remove("active"); }, 150));
+
+async function runSuggest(q){
+  const { data, error } = await client.from("cod_pred")
+    .select("cod_prel,codigo_mtc,unir,titular")
+    .or(`cod_prel.ilike.%${q}%,codigo_mtc.ilike.%${q}%,titular.ilike.%${q}%`)
+    .limit(12);
+  if(error){ console.error(error); return; }
+  suggestions.innerHTML = "";
+  (data||[]).forEach(r=>{
+    const tit = (r.titular||"").toString();
+    const titCut = tit.length>60 ? tit.slice(0,57)+'…' : tit;
+    const row = document.createElement("div");
+    row.innerHTML = `<b>${r.cod_prel}</b> — MTC: ${r.codigo_mtc ?? "—"}<br><span class="muted">${titCut}</span>`;
+    row.onclick = ()=>{ suggestions.classList.remove("active"); showGroup(r.unir); };
+    suggestions.appendChild(row);
+  });
+  suggestions.classList.add("active");
+}
+
+/** ====== FILTROS (Comunidad + Grupo + prog_ini rango) ====== **/
+const selCom = document.getElementById("filterComunidad");
+const selGrupo = document.getElementById("filterGrupo");
+const inpProgDesde = document.getElementById("progDesde");
+const inpProgHasta = document.getElementById("progHasta");
+
+document.getElementById("btnFiltrar").addEventListener("click", applyFilters);
+document.getElementById("btnReset").addEventListener("click", async ()=>{
+  selCom.value=""; selGrupo.value=""; searchBox.value=""; inpProgDesde.value=""; inpProgHasta.value="";
+  await loadAllPredios();
+  blockCommon.style.display="none"; wrapAreas.style.display="none"; emptyHint.style.display="";
+});
+
+async function hydrateFilterOptions(){
+  const { data, error } = await client.from("cod_pred").select("comunidad").not("geom","is",null);
+  if(error) return;
+  const comunidades = [...new Set((data||[]).map(d=>d.comunidad).filter(Boolean))].sort();
+  comunidades.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selCom.appendChild(o); });
+  // modal select también
+  const selList = document.getElementById("listComunidad");
+  selList.innerHTML = '<option value="">— Selecciona —</option>';
+  comunidades.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selList.appendChild(o); });
+}
+
+async function applyFilters(){
+  let q = client.from("cod_pred").select("cod_prel,unir,tipo,geom,comunidad,grupo,condicion,codigo_mtc,titular,comentario_social,area,prog_ini,prog_fin,lado");
+  if(selCom.value) q = q.eq("comunidad", selCom.value);
+  if(selGrupo.value) q = q.eq("grupo", selGrupo.value);
+
+  const { data, error } = await q;
+  if(error){ console.error(error); return; }
+
+  // Filtro por prog_ini (rango) en cliente
+  const d = data||[];
+  const pMin = parseProg(inpProgDesde.value);
+  const pMax = parseProg(inpProgHasta.value);
+  const filtered = d.filter(r=>{
+    if(pMin==null && pMax==null) return true;
+    const val = parseProg(r.prog_ini);
+    if(val==null) return false;
+    if(pMin!=null && val < pMin) return false;
+    if(pMax!=null && val > pMax) return false;
+    return true;
+  });
+
+  renderFeatures(filtered);
+}
+
+/** ====== MODAL LISTA POR COMUNIDAD ====== **/
+const modalBack = document.getElementById("modalListBack");
+const btnLista = document.getElementById("btnLista");
+const btnLista_m = document.getElementById("btnLista_m");
+const btnCloseList = document.getElementById("btnCloseList");
+const btnLoadList = document.getElementById("btnLoadList");
+const listComunidad = document.getElementById("listComunidad");
+const listFilter = document.getElementById("listFilter");
+const tblList = document.getElementById("tblList").querySelector("tbody");
+
+btnLista.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
+btnLista_m.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
+btnCloseList.addEventListener("click", ()=>{ modalBack.style.display="none"; });
+
+btnLoadList.addEventListener("click", async ()=>{
+  const com = listComunidad.value;
+  if(!com){ alert("Selecciona una comunidad"); return; }
+  const { data, error } = await client.from("cod_pred")
+    .select("comunidad,codigo_mtc,cod_prel,titular,unir")
+    .eq("comunidad", com).order("codigo_mtc",{ascending:true});
+  if(error){ alert("Error: "+error.message); return; }
+  renderListTable(data||[]);
+});
+
+listFilter.addEventListener("input", ()=>{
+  const term = listFilter.value.trim().toLowerCase();
+  const rows = tblList.querySelectorAll("tr");
+  rows.forEach(tr=>{
+    const txt = tr.innerText.toLowerCase();
+    tr.style.display = txt.includes(term) ? "" : "none";
+  });
+});
+
+function renderListTable(rows){
+  if(rows.length===0){ tblList.innerHTML = `<tr><td colspan="5" class="muted">Sin resultados.</td></tr>`; return; }
+  tblList.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${esc(r.comunidad)}</td>
+      <td>${esc(r.codigo_mtc||"")}</td>
+      <td>${esc(r.cod_prel||"")}</td>
+      <td>${esc(r.titular||"")}</td>
+      <td><button class="btn-small" data-unir="${r.unir}" data-cod="${esc(r.cod_prel)}">Seleccionar</button></td>
+    </tr>
+  `).join("");
+}
+
+// selección desde la tabla
+tblList.addEventListener("click", async (e)=>{
+  const btn = e.target.closest("button[data-unir]");
+  if(!btn) return;
+  const unir = Number(btn.getAttribute("data-unir"));
+  const cod  = btn.getAttribute("data-cod");
+  modalBack.style.display = "none";
+  await showGroup(unir);
+  selectedCodPrel = cod;
+  focusByCodPrel(cod);
+  highlightGroup(unir, false);
+  setTimeout(()=>{
+    const card = Array.from(document.querySelectorAll(".area-card")).find(el => el.getAttribute("data-cod") === cod);
+    if(card){
+      card.classList.add("flash");
+      card.scrollIntoView({ behavior:"smooth", block:"center" });
+      setTimeout(()=> card.classList.remove("flash"), 1200);
+    }
+  }, 300);
+});
+
+/** ====== MODAL OBSERVADOS (comentario_social ≠ vacío) ====== **/
+const modalObs = document.getElementById("modalObsBack");
+const btnObs = document.getElementById("btnObs");
+const btnObs_m = document.getElementById("btnObs_m");
+const btnCloseObs = document.getElementById("btnCloseObs");
+const btnReloadObs = document.getElementById("btnReloadObs");
+const obsFilter = document.getElementById("obsFilter");
+const tblObs = document.getElementById("tblObs").querySelector("tbody");
+
+btnObs.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+btnObs_m.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+btnCloseObs.addEventListener("click", ()=>{ modalObs.style.display="none"; });
+btnReloadObs.addEventListener("click", loadObserved);
+obsFilter.addEventListener("input", ()=>{
+  const term = obsFilter.value.trim().toLowerCase();
+  const rows = tblObs.querySelectorAll("tr");
+  rows.forEach(tr=>{
+    const txt = tr.innerText.toLowerCase();
+    tr.style.display = txt.includes(term) ? "" : "none";
+  });
+});
+
+/* NOTA: si tu columna de observaciones se llama distinto,
+   reemplaza 'comentario_social' por 'observaciones' en el SELECT y filtro */
+async function loadObserved(){
+  tblObs.innerHTML = `<tr><td colspan="6" class="muted">Cargando…</td></tr>`;
+  const { data, error } = await client.from("cod_pred")
+    .select("comunidad,codigo_mtc,cod_prel,titular,unir,comentario_social")
+    .not("comentario_social","is",null);
+  if(error){ tblObs.innerHTML = `<tr><td colspan="6">Error: ${esc(error.message)}</td></tr>`; return; }
+  const rows = (data||[]).filter(r => String(r.comentario_social||"").trim().length>0);
+  renderObsTable(rows);
+  // filtro por defecto: vacío => muestra todos
+  obsFilter.value = "";
+}
+
+function renderObsTable(rows){
+  if(rows.length===0){ tblObs.innerHTML = `<tr><td colspan="6" class="muted">No hay códigos observados.</td></tr>`; return; }
+  tblObs.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${esc(r.comunidad)}</td>
+      <td>${esc(r.codigo_mtc||"")}</td>
+      <td>${esc(r.cod_prel||"")}</td>
+      <td>${esc(r.titular||"")}</td>
+      <td>${esc(r.comentario_social||"")}</td>
+      <td><button class="btn-small" data-unir="${r.unir}" data-cod="${esc(r.cod_prel)}">Seleccionar</button></td>
+    </tr>
+  `).join("");
+}
+
+// selección desde observados
+tblObs.addEventListener("click", async (e)=>{
+  const btn = e.target.closest("button[data-unir]");
+  if(!btn) return;
+  const unir = Number(btn.getAttribute("data-unir"));
+  const cod  = btn.getAttribute("data-cod");
+  modalObs.style.display = "none";
+  await showGroup(unir);
+  selectedCodPrel = cod;
+  focusByCodPrel(cod);
+  highlightGroup(unir, false);
+  setTimeout(()=>{
+    const card = Array.from(document.querySelectorAll(".area-card")).find(el => el.getAttribute("data-cod") === cod);
+    if(card){
+      card.classList.add("flash");
+      card.scrollIntoView({ behavior:"smooth", block:"center" });
+      setTimeout(()=> card.classList.remove("flash"), 1200);
+    }
+  }, 300);
+});
+
+/** ====== RESIZER (solo PC) ====== **/
+(function initGutter(){
+  const left = document.getElementById("leftPane");
+  const gutter = document.getElementById("gutter");
+  let dragging=false, startX=0, startLeft=0;
+  const isMobile = ()=> window.matchMedia("(max-width: 900px)").matches;
+  gutter.addEventListener("mousedown",(e)=>{
+    if(isMobile()) return;
+    dragging=true; startX=e.clientX; startLeft=left.getBoundingClientRect().width;
+    document.body.style.userSelect="none";
+  });
+  window.addEventListener("mousemove",(e)=>{
+    if(!dragging || isMobile()) return;
+    const dx = e.clientX - startX;
+    const newW = Math.max(280, Math.min(window.innerWidth-280, startLeft + dx));
+    const percent = (newW / window.innerWidth) * 100;
+    left.style.flexBasis = percent + "%";
+    setTimeout(()=> map.invalidateSize(), 0);
+  });
+  window.addEventListener("mouseup",()=>{ dragging=false; document.body.style.userSelect=""; });
+  window.addEventListener("resize", ()=> setTimeout(()=> map.invalidateSize(), 200));
+})();
+
+/** ====== INIT ====== **/
+(async function init(){
+  await hydrateFilterOptions();
+  await loadAllPredios();
+})();
+</script>
+</body>
+</html>

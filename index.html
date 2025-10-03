@@ -22,14 +22,20 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;overflow:hidden;color:var(--text)}
+    body{display:flex;flex-direction:column;height:100%}
     header{
-      display:flex;gap:12px;align-items:center;justify-content:space-between;
-      padding:10px 16px;background:var(--brand);color:#fff;position:relative;z-index:5000;
+      display:flex;align-items:center;gap:12px;flex-wrap:nowrap;
+      padding:10px 14px;background:var(--brand);color:#fff;position:relative;z-index:5000;
       box-shadow:0 2px 10px rgba(0,0,0,.25);
+      overflow-x:auto;
     }
-    header .title{font-weight:700;letter-spacing:.3px}
-    #centerControls{flex:1;display:flex;justify-content:center;position:relative}
-    #searchWrap{position:relative;width:min(560px,92%)}
+    header > *{flex:0 0 auto;min-width:0}
+    header{scrollbar-width:thin}
+    header::-webkit-scrollbar{height:4px}
+    header::-webkit-scrollbar-thumb{background:rgba(255,255,255,.35);border-radius:999px}
+    header .title{font-weight:700;letter-spacing:.3px;white-space:nowrap}
+    #centerControls{flex:1 1 360px;display:flex;justify-content:center;position:relative;min-width:220px}
+    #searchWrap{position:relative;width:100%;max-width:560px;min-width:200px}
     #searchBox{
       width:100%;padding:10px 14px;border-radius:24px;border:none;outline:none;
       font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.15) inset, 0 1px 0 rgba(255,255,255,.1);
@@ -44,41 +50,78 @@
     #suggestions div{padding:8px 10px;cursor:pointer}
     #suggestions div:hover{background:#f1f5f9}
 
-    #rightControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    select,button{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px}
+    #rightControls{
+      display:flex;align-items:center;gap:8px;
+      flex-wrap:nowrap;
+    }
+    #rightControls select,#rightControls button{flex:0 0 auto;white-space:nowrap}
+    select,button{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px;min-width:0}
     select{background:#fff;border-color:var(--line);color:var(--text)}
     .btn{background:var(--accent);color:#fff;cursor:pointer}
     .btn:hover{background:var(--accent-dark)}
     .ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35)}
     .ghost:hover{border-color:#fff}
+    .icon-btn{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:8px;border-radius:8px;font-size:18px;line-height:1}
 
     /* Layout PC por defecto */
-    #split{display:flex;height:calc(100% - 60px);min-height:300px}
-    #leftPane{flex-basis:60%;position:relative;background:#000}
-    #rightPane{flex:1;background:var(--panel-bg);border-left:1px solid var(--line);overflow:auto}
+    #split{display:flex;flex:1;min-height:300px}
+    #leftPane{flex:1 1 50%;position:relative;background:#000}
+    #rightPane{flex:1 1 50%;background:var(--panel-bg);border-left:1px solid var(--line);overflow:auto}
     #gutter{width:6px;cursor:col-resize;background:linear-gradient(90deg,transparent,rgba(0,0,0,.08),transparent)}
     #map{position:absolute;inset:0}
 
-    /* Control rápido móvil (oculto por defecto) — IMPORTANTE: esta regla va ANTES del @media */
-    .leaflet-control.mobile-quick{
-      display:none;
-      background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px; margin-top:6px;
-      box-shadow:0 2px 6px rgba(0,0,0,.15);
-    }
-    .mobile-quick .btn-quick{
-      display:block; width:100%; margin:4px 0; background:#fff; border:1px solid var(--line);
-      border-radius:6px; padding:6px 10px; font-size:14px; cursor:pointer;
-    }
-    .mobile-quick .btn-quick:hover{border-color:var(--accent)}
-
-    /* Móvil: 50% mapa / 50% datos y mostrar control rápido */
+    /* Móvil: 50% mapa / 50% datos */
     @media (max-width: 900px){
+      header{padding:8px 10px;gap:10px}
+      .title{font-size:15px}
+      #centerControls{min-width:200px;flex:1 1 300px}
+      #searchWrap{min-width:180px}
+      #searchBox{font-size:13px;padding:8px 12px}
+      #rightControls{gap:7px}
       #split{flex-direction:column}
       #leftPane{flex-basis:auto;height:50vh}
       #rightPane{height:50vh;border-left:none;border-top:1px solid var(--line)}
       #gutter{display:none}
-      #rightControls{display:none}
-      .leaflet-control.mobile-quick{display:block !important;} /* <- hace visible el control en móvil */
+    }
+
+    @media (max-width: 720px){
+      header{gap:8px}
+      #centerControls{min-width:170px;flex:1 1 240px}
+      #searchWrap{min-width:160px}
+      select,button{font-size:13px}
+      .icon-btn{min-width:36px;padding:6px;font-size:16px}
+      #rightControls{gap:6px}
+    }
+
+    @media (max-width: 520px){
+      header{gap:6px}
+      .title{font-size:14px}
+      #centerControls{min-width:140px;flex:1 1 200px}
+      #searchWrap{min-width:140px}
+      #searchBox{padding:7px 10px;font-size:12px}
+      .icon-btn{min-width:34px;padding:6px;font-size:15px}
+    }
+
+    .leaflet-control.mobile-quick{display:none!important}
+
+    .modal-back{
+      position:fixed;inset:0;background:rgba(15,23,42,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:7000;
+    }
+    .modal{
+      background:#fff;color:var(--text);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.35);max-width:min(900px,96vw);width:100%;padding:20px;display:flex;flex-direction:column;gap:16px;
+    }
+    .modal .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+    .modal label{display:flex;flex-direction:column;gap:4px;font-size:14px}
+    .modal label input,.modal label select{margin-top:4px}
+    .modal table{width:100%;border-collapse:collapse}
+    .modal th,.modal td{border:1px solid var(--line);padding:8px;font-size:14px;text-align:left}
+    .modal table.list th,.modal table.list td{font-size:10px}
+    .modal thead{background:#f1f5f9;position:sticky;top:0;z-index:1}
+    .modal-back.show{display:flex}
+
+    @media (max-width: 600px){
+      .modal .row{flex-direction:column;align-items:stretch}
+      .modal .row > *{width:100%}
     }
 
     .panel{padding:16px}
@@ -126,17 +169,8 @@
     </div>
 
     <div id="rightControls">
-      <select id="filterComunidad"><option value="">Comunidad (todas)</option></select>
-      <select id="filterGrupo">
-        <option value="">Grupo (todos)</option>
-        <option value="1">1</option><option value="2">2</option>
-        <option value="3">3</option><option value="4">4</option>
-        <option value="1er_entregable">1er_entregable</option>
-      </select>
-      <button class="btn" id="btnFiltrar">Filtrar</button>
-      <button class="ghost" id="btnReset">Reset</button>
-      <button class="ghost" id="btnLista">📋 Lista por comunidad</button>
-      <button class="ghost" id="btnObs">👁 Observados</button>
+      <button class="ghost icon-btn" id="btnLista" aria-label="Lista por comunidad" title="Lista por comunidad">📋</button>
+      <button class="ghost icon-btn" id="btnObs" aria-label="Observados" title="Observados">👁️</button>
     </div>
   </header>
 
@@ -290,41 +324,26 @@ const capaOtros     = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).
 /* Capas (control) */
 const layersCtl = L.control.layers(null, { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros }).addTo(map);
 
-/* Control rápido SOLO móvil (debajo del de capas) */
-const MobileQuick = L.Control.extend({
-  onAdd: function(){
-    const div = L.DomUtil.create('div', 'leaflet-control mobile-quick');
-    div.innerHTML = `
-      <button id="btnLista_m" class="btn-quick">📋 Lista por comunidad</button>
-      <button id="btnObs_m" class="btn-quick">👁 Observados</button>
-    `;
-    L.DomEvent.disableClickPropagation(div);
-    return div;
-  }
+const modalBack = document.getElementById("modalListBack");
+const modalObs = document.getElementById("modalObsBack");
+
+function showModal(backdrop){ if(backdrop) backdrop.classList.add("show"); }
+function hideModal(backdrop){ if(backdrop) backdrop.classList.remove("show"); }
+[modalBack, modalObs].forEach(backdrop=>{
+  backdrop?.addEventListener("click", (e)=>{ if(e.target === backdrop) hideModal(backdrop); });
 });
-const mobileQuick = new MobileQuick({ position:'topright' }).addTo(map);
+document.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape"){ hideModal(modalBack); hideModal(modalObs); }
+});
 
-/* Handlers para botones de cabecera (PC) */
-document.getElementById("btnLista").addEventListener("click", ()=>{ modalBack.style.display="flex"; });
-document.getElementById("btnObs").addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
-
-/* Handlers para botones del control móvil */
-function attachMobileQuickHandlers(){
-  const b1 = document.getElementById("btnLista_m");
-  const b2 = document.getElementById("btnObs_m");
-  if(b1 && !b1._bound){
-    b1.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
-    b1._bound = true;
-  }
-  if(b2 && !b2._bound){
-    b2.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
-    b2._bound = true;
-  }
-}
-attachMobileQuickHandlers();
-/* Re-atacha si Leaflet vuelve a pintar el control o cambia el DOM */
-const mo = new MutationObserver(()=> attachMobileQuickHandlers());
-mo.observe(document.body, { childList:true, subtree:true });
+/* Handlers para botones de cabecera */
+[
+  ["btnLista", ()=> showModal(modalBack)],
+  ["btnObs", async ()=>{ showModal(modalObs); await loadObserved(); }]
+].forEach(([id, handler])=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener("click", handler);
+});
 
 /** ====== GEOLOCALIZACIÓN (botón abajo-izquierda) ====== **/
 let locateMarker = null, locateCircle = null;
@@ -522,46 +541,24 @@ async function runSuggest(q){
   suggestions.classList.add("active");
 }
 
-/** ====== FILTROS (Comunidad + Grupo) ====== **/
-const selCom = document.getElementById("filterComunidad");
-const selGrupo = document.getElementById("filterGrupo");
-
-document.getElementById("btnFiltrar").addEventListener("click", applyFilters);
-document.getElementById("btnReset").addEventListener("click", async ()=>{
-  selCom.value=""; selGrupo.value=""; searchBox.value="";
-  await loadAllPredios();
-  blockCommon.style.display="none"; wrapAreas.style.display="none"; emptyHint.style.display="";
-});
-
-async function hydrateFilterOptions(){
+/** ====== OPCIONES DE COMUNIDAD ====== **/
+async function hydrateCommunityOptions(){
   const { data, error } = await client.from("cod_pred").select("comunidad").not("geom","is",null);
   if(error) return;
   const comunidades = [...new Set((data||[]).map(d=>d.comunidad).filter(Boolean))].sort();
-  comunidades.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selCom.appendChild(o); });
   const selList = document.getElementById("listComunidad");
   selList.innerHTML = '<option value="">— Selecciona —</option>';
   comunidades.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selList.appendChild(o); });
 }
 
-async function applyFilters(){
-  let q = client.from("cod_pred").select("cod_prel,unir,tipo,geom,comunidad,grupo,condicion,codigo_mtc,titular,comentario_social,area,prog_ini,prog_fin,lado");
-  if(selCom.value) q = q.eq("comunidad", selCom.value);
-  if(selGrupo.value) q = q.eq("grupo", selGrupo.value);
-
-  const { data, error } = await q;
-  if(error){ console.error(error); return; }
-  renderFeatures(data||[]);
-}
-
 /** ====== MODAL LISTA POR COMUNIDAD ====== **/
-const modalBack = document.getElementById("modalListBack");
 const btnCloseList = document.getElementById("btnCloseList");
 const btnLoadList = document.getElementById("btnLoadList");
 const listComunidad = document.getElementById("listComunidad");
 const listFilter = document.getElementById("listFilter");
 const tblList = document.getElementById("tblList").querySelector("tbody");
 
-btnCloseList.addEventListener("click", ()=>{ modalBack.style.display="none"; });
+btnCloseList.addEventListener("click", ()=>{ hideModal(modalBack); });
 
 btnLoadList.addEventListener("click", async ()=>{
   const com = listComunidad.value;
@@ -602,7 +599,7 @@ document.getElementById("tblList").addEventListener("click", async (e)=>{
   if(!btn) return;
   const unir = Number(btn.getAttribute("data-unir"));
   const cod  = btn.getAttribute("data-cod");
-  modalBack.style.display = "none";
+  hideModal(modalBack);
   await showGroup(unir);
   selectedCodPrel = cod;
   focusByCodPrel(cod);
@@ -618,13 +615,12 @@ document.getElementById("tblList").addEventListener("click", async (e)=>{
 });
 
 /** ====== MODAL OBSERVADOS ====== **/
-const modalObs = document.getElementById("modalObsBack");
 const btnCloseObs = document.getElementById("btnCloseObs");
 const btnReloadObs = document.getElementById("btnReloadObs");
 const obsFilter = document.getElementById("obsFilter");
 const tblObs = document.getElementById("tblObs").querySelector("tbody");
 
-btnCloseObs.addEventListener("click", ()=>{ modalObs.style.display="none"; });
+btnCloseObs.addEventListener("click", ()=>{ hideModal(modalObs); });
 btnReloadObs.addEventListener("click", loadObserved);
 obsFilter.addEventListener("input", ()=>{
   const term = obsFilter.value.trim().toLowerCase();
@@ -667,7 +663,7 @@ document.getElementById("tblObs").addEventListener("click", async (e)=>{
   if(!btn) return;
   const unir = Number(btn.getAttribute("data-unir"));
   const cod  = btn.getAttribute("data-cod");
-  modalObs.style.display = "none";
+  hideModal(modalObs);
   await showGroup(unir);
   selectedCodPrel = cod;
   focusByCodPrel(cod);
@@ -707,7 +703,7 @@ document.getElementById("tblObs").addEventListener("click", async (e)=>{
 
 /** ====== INIT ====== **/
 (async function init(){
-  await hydrateFilterOptions();
+  await hydrateCommunityOptions();
   await loadAllPredios();
 })();
 </script>

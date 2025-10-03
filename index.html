@@ -26,6 +26,7 @@
       display:flex;gap:12px;align-items:center;justify-content:space-between;
       padding:10px 16px;background:var(--brand);color:#fff;position:relative;z-index:5000;
       box-shadow:0 2px 10px rgba(0,0,0,.25);
+      flex-wrap:wrap;
     }
     header .title{font-weight:700;letter-spacing:.3px}
     #centerControls{flex:1;display:flex;justify-content:center;position:relative}
@@ -45,6 +46,8 @@
     #suggestions div:hover{background:#f1f5f9}
 
     #rightControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    #mobileActions{display:none;gap:8px;width:100%;justify-content:center;flex-wrap:wrap;margin-top:8px}
+    #mobileActions button{flex:1 1 160px}
     select,button{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px}
     select{background:#fff;border-color:var(--line);color:var(--text)}
     .btn{background:var(--accent);color:#fff;cursor:pointer}
@@ -73,12 +76,35 @@
 
     /* Móvil: 50% mapa / 50% datos y mostrar control rápido */
     @media (max-width: 900px){
+      header{justify-content:center}
+      #centerControls{order:3;width:100%}
       #split{flex-direction:column}
       #leftPane{flex-basis:auto;height:50vh}
       #rightPane{height:50vh;border-left:none;border-top:1px solid var(--line)}
       #gutter{display:none}
       #rightControls{display:none}
+      #mobileActions{display:flex}
       .leaflet-control.mobile-quick{display:block !important;} /* <- hace visible el control en móvil */
+    }
+
+    .modal-back{
+      position:fixed;inset:0;background:rgba(15,23,42,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:7000;
+    }
+    .modal{
+      background:#fff;color:var(--text);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.35);max-width:min(900px,96vw);width:100%;padding:20px;display:flex;flex-direction:column;gap:16px;
+    }
+    .modal .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+    .modal label{display:flex;flex-direction:column;gap:4px;font-size:14px}
+    .modal label input,.modal label select{margin-top:4px}
+    .modal table{width:100%;border-collapse:collapse}
+    .modal th,.modal td{border:1px solid var(--line);padding:8px;font-size:14px;text-align:left}
+    .modal thead{background:#f1f5f9;position:sticky;top:0;z-index:1}
+    .modal-back.show{display:flex}
+
+    @media (max-width: 600px){
+      .modal .row{flex-direction:column;align-items:stretch}
+      .modal .row > *{width:100%}
+      #mobileActions button{flex:1 1 100%}
     }
 
     .panel{padding:16px}
@@ -137,6 +163,10 @@
       <button class="ghost" id="btnReset">Reset</button>
       <button class="ghost" id="btnLista">📋 Lista por comunidad</button>
       <button class="ghost" id="btnObs">👁 Observados</button>
+    </div>
+    <div id="mobileActions">
+      <button class="ghost" id="btnListaMobile">📋 Lista por comunidad</button>
+      <button class="ghost" id="btnObsMobile">👁 Observados</button>
     </div>
   </header>
 
@@ -290,6 +320,18 @@ const capaOtros     = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).
 /* Capas (control) */
 const layersCtl = L.control.layers(null, { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros }).addTo(map);
 
+const modalBack = document.getElementById("modalListBack");
+const modalObs = document.getElementById("modalObsBack");
+
+function showModal(backdrop){ if(backdrop) backdrop.classList.add("show"); }
+function hideModal(backdrop){ if(backdrop) backdrop.classList.remove("show"); }
+[modalBack, modalObs].forEach(backdrop=>{
+  backdrop?.addEventListener("click", (e)=>{ if(e.target === backdrop) hideModal(backdrop); });
+});
+document.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape"){ hideModal(modalBack); hideModal(modalObs); }
+});
+
 /* Control rápido SOLO móvil (debajo del de capas) */
 const MobileQuick = L.Control.extend({
   onAdd: function(){
@@ -304,20 +346,27 @@ const MobileQuick = L.Control.extend({
 });
 const mobileQuick = new MobileQuick({ position:'topright' }).addTo(map);
 
-/* Handlers para botones de cabecera (PC) */
-document.getElementById("btnLista").addEventListener("click", ()=>{ modalBack.style.display="flex"; });
-document.getElementById("btnObs").addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+/* Handlers para botones de cabecera (PC y móvil) */
+[
+  ["btnLista", ()=> showModal(modalBack)],
+  ["btnListaMobile", ()=> showModal(modalBack)],
+  ["btnObs", async ()=>{ showModal(modalObs); await loadObserved(); }],
+  ["btnObsMobile", async ()=>{ showModal(modalObs); await loadObserved(); }]
+].forEach(([id, handler])=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener("click", handler);
+});
 
 /* Handlers para botones del control móvil */
 function attachMobileQuickHandlers(){
   const b1 = document.getElementById("btnLista_m");
   const b2 = document.getElementById("btnObs_m");
   if(b1 && !b1._bound){
-    b1.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
+    b1.addEventListener("click", ()=>{ showModal(modalBack); });
     b1._bound = true;
   }
   if(b2 && !b2._bound){
-    b2.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+    b2.addEventListener("click", async ()=>{ showModal(modalObs); await loadObserved(); });
     b2._bound = true;
   }
 }
@@ -554,14 +603,13 @@ async function applyFilters(){
 }
 
 /** ====== MODAL LISTA POR COMUNIDAD ====== **/
-const modalBack = document.getElementById("modalListBack");
 const btnCloseList = document.getElementById("btnCloseList");
 const btnLoadList = document.getElementById("btnLoadList");
 const listComunidad = document.getElementById("listComunidad");
 const listFilter = document.getElementById("listFilter");
 const tblList = document.getElementById("tblList").querySelector("tbody");
 
-btnCloseList.addEventListener("click", ()=>{ modalBack.style.display="none"; });
+btnCloseList.addEventListener("click", ()=>{ hideModal(modalBack); });
 
 btnLoadList.addEventListener("click", async ()=>{
   const com = listComunidad.value;
@@ -602,7 +650,7 @@ document.getElementById("tblList").addEventListener("click", async (e)=>{
   if(!btn) return;
   const unir = Number(btn.getAttribute("data-unir"));
   const cod  = btn.getAttribute("data-cod");
-  modalBack.style.display = "none";
+  hideModal(modalBack);
   await showGroup(unir);
   selectedCodPrel = cod;
   focusByCodPrel(cod);
@@ -618,13 +666,12 @@ document.getElementById("tblList").addEventListener("click", async (e)=>{
 });
 
 /** ====== MODAL OBSERVADOS ====== **/
-const modalObs = document.getElementById("modalObsBack");
 const btnCloseObs = document.getElementById("btnCloseObs");
 const btnReloadObs = document.getElementById("btnReloadObs");
 const obsFilter = document.getElementById("obsFilter");
 const tblObs = document.getElementById("tblObs").querySelector("tbody");
 
-btnCloseObs.addEventListener("click", ()=>{ modalObs.style.display="none"; });
+btnCloseObs.addEventListener("click", ()=>{ hideModal(modalObs); });
 btnReloadObs.addEventListener("click", loadObserved);
 obsFilter.addEventListener("input", ()=>{
   const term = obsFilter.value.trim().toLowerCase();
@@ -667,7 +714,7 @@ document.getElementById("tblObs").addEventListener("click", async (e)=>{
   if(!btn) return;
   const unir = Number(btn.getAttribute("data-unir"));
   const cod  = btn.getAttribute("data-cod");
-  modalObs.style.display = "none";
+  hideModal(modalObs);
   await showGroup(unir);
   selectedCodPrel = cod;
   focusByCodPrel(cod);

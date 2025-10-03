@@ -59,15 +59,26 @@
     #gutter{width:6px;cursor:col-resize;background:linear-gradient(90deg,transparent,rgba(0,0,0,.08),transparent)}
     #map{position:absolute;inset:0}
 
-    /* Móvil: 50% mapa / 50% datos */
+    /* Control rápido móvil (oculto por defecto) — IMPORTANTE: esta regla va ANTES del @media */
+    .leaflet-control.mobile-quick{
+      display:none;
+      background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px; margin-top:6px;
+      box-shadow:0 2px 6px rgba(0,0,0,.15);
+    }
+    .mobile-quick .btn-quick{
+      display:block; width:100%; margin:4px 0; background:#fff; border:1px solid var(--line);
+      border-radius:6px; padding:6px 10px; font-size:14px; cursor:pointer;
+    }
+    .mobile-quick .btn-quick:hover{border-color:var(--accent)}
+
+    /* Móvil: 50% mapa / 50% datos y mostrar control rápido */
     @media (max-width: 900px){
       #split{flex-direction:column}
       #leftPane{flex-basis:auto;height:50vh}
       #rightPane{height:50vh;border-left:none;border-top:1px solid var(--line)}
       #gutter{display:none}
       #rightControls{display:none}
-      /* mostrar sólo en móvil el control rápido bajo capas */
-      .leaflet-control.mobile-quick{display:block}
+      .leaflet-control.mobile-quick{display:block !important;} /* <- hace visible el control en móvil */
     }
 
     .panel{padding:16px}
@@ -88,7 +99,7 @@
     .btn-small:hover{border-color:var(--accent)}
     td.clickable{cursor:pointer;text-decoration:underline}
 
-    /* Botones del mapa: abajo-izquierda (ubicación) */
+    /* Botón Ubicación (abajo-izquierda) */
     .map-btns{
       position:absolute; left:10px; bottom:10px; z-index:4500; display:flex; flex-direction:row; gap:8px; flex-wrap:wrap;
     }
@@ -97,17 +108,6 @@
     }
     .map-btn:hover{border-color:var(--accent)}
 
-    /* Control rápido SOLO móvil (oculto por defecto, visible en media query) */
-    .leaflet-control.mobile-quick{
-      display:none;
-      background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px; margin-top:6px;
-      box-shadow:0 2px 6px rgba(0,0,0,.15);
-    }
-    .mobile-quick .btn-quick{
-      display:block; width:100%; margin:4px 0; background:#fff; border:1px solid var(--line);
-      border-radius:6px; padding:6px 10px; font-size:14px; cursor:pointer;
-    }
-    .mobile-quick .btn-quick:hover{border-color:var(--accent)}
     .flash { animation: flash 1s ease-out 1; }
     @keyframes flash { 0% { box-shadow:0 0 0 rgba(14,165,233,0); background:#fff; }
       20%{ box-shadow:0 0 0 6px rgba(14,165,233,.15); background:#e0f2fe; }
@@ -143,11 +143,7 @@
   <div id="split">
     <section id="leftPane">
       <div id="map"></div>
-
-      <!-- Botón de ubicación -->
-      <div class="map-btns">
-        <button id="btnLocate" class="map-btn" title="Ubicarme">📍</button>
-      </div>
+      <div class="map-btns"><button id="btnLocate" class="map-btn" title="Ubicarme">📍</button></div>
     </section>
 
     <div id="gutter" title="Arrastra para redimensionar"></div>
@@ -155,8 +151,6 @@
     <section id="rightPane">
       <div class="panel">
         <h3>Detalle del predio</h3>
-
-        <!-- Datos comunes (solo lectura) -->
         <div id="commonBlock" class="block" style="display:none">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <div style="display:flex;align-items:center;gap:8px;">
@@ -164,7 +158,6 @@
               <span id="unionCount" class="badge"></span>
             </div>
           </div>
-
           <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div><div class="label">Código MTC</div><div id="cm_mtc" class="textblock"></div></div>
             <div><div class="label">Comunidad</div><div id="cm_comunidad" class="textblock"></div></div>
@@ -179,7 +172,6 @@
           </div>
         </div>
 
-        <!-- Áreas afectadas (edición SOLO de comentario_social) -->
         <div id="areasWrap" class="block" style="display:none">
           <div class="label">Áreas afectadas</div>
           <div id="areasList"></div>
@@ -267,7 +259,7 @@ function getVar(n){ return getComputedStyle(document.documentElement).getPropert
 function isPredios(v){ return (v||"").toLowerCase()==="predios" || (v||"").toLowerCase()==="predio"; }
 function isComunidad(v){ return (v||"").toLowerCase()==="comunidad"; }
 function cap(r){ return (r||"").replace(/\b\w/g,m=>m.toUpperCase()); }
-function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;","&gt;":">","\"":"&quot;","'":"&#39;"}[m])); }
+function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;"," >": "&gt;","\"":"&quot;","'":"&#39;"}[m]||m)); }
 function hasSocial(p){ return !!(p?.comentario_social && String(p.comentario_social).trim().length>0); }
 
 /** ====== MAPA (zoom por defecto 13) ====== **/
@@ -298,7 +290,7 @@ const capaOtros     = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).
 /* Capas (control) */
 const layersCtl = L.control.layers(null, { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros }).addTo(map);
 
-/* Control rápido móvil (aparece DEBAJO del control de capas) */
+/* Control rápido SOLO móvil (debajo del de capas) */
 const MobileQuick = L.Control.extend({
   onAdd: function(){
     const div = L.DomUtil.create('div', 'leaflet-control mobile-quick');
@@ -312,14 +304,27 @@ const MobileQuick = L.Control.extend({
 });
 const mobileQuick = new MobileQuick({ position:'topright' }).addTo(map);
 
-/* Handlers para los botones móviles (después de crearlos) */
+/* Handlers para botones de cabecera (PC) */
+document.getElementById("btnLista").addEventListener("click", ()=>{ modalBack.style.display="flex"; });
+document.getElementById("btnObs").addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+
+/* Handlers para botones del control móvil */
 function attachMobileQuickHandlers(){
   const b1 = document.getElementById("btnLista_m");
   const b2 = document.getElementById("btnObs_m");
-  if(b1) b1.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
-  if(b2) b2.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+  if(b1 && !b1._bound){
+    b1.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
+    b1._bound = true;
+  }
+  if(b2 && !b2._bound){
+    b2.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+    b2._bound = true;
+  }
 }
 attachMobileQuickHandlers();
+/* Re-atacha si Leaflet vuelve a pintar el control o cambia el DOM */
+const mo = new MutationObserver(()=> attachMobileQuickHandlers());
+mo.observe(document.body, { childList:true, subtree:true });
 
 /** ====== GEOLOCALIZACIÓN (botón abajo-izquierda) ====== **/
 let locateMarker = null, locateCircle = null;
@@ -426,7 +431,7 @@ async function showGroup(unirId){
   setText("cm_grupo", c.grupo || "");
   setText("cm_fecha", c.fecha_elab ? String(c.fecha_elab).slice(0,10) : "");
 
-  // Tarjetas de áreas (edición ÚNICA de comentario_social)
+  // Tarjetas con edición ÚNICA de comentario_social
   listAreas.innerHTML = "";
   (data||[]).forEach(p=>{
     const hasCom = hasSocial(p);
@@ -533,7 +538,6 @@ async function hydrateFilterOptions(){
   if(error) return;
   const comunidades = [...new Set((data||[]).map(d=>d.comunidad).filter(Boolean))].sort();
   comunidades.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selCom.appendChild(o); });
-  // modal select también
   const selList = document.getElementById("listComunidad");
   selList.innerHTML = '<option value="">— Selecciona —</option>';
   comunidades.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selList.appendChild(o); });
@@ -551,14 +555,11 @@ async function applyFilters(){
 
 /** ====== MODAL LISTA POR COMUNIDAD ====== **/
 const modalBack = document.getElementById("modalListBack");
-const btnLista = document.getElementById("btnLista");
 const btnCloseList = document.getElementById("btnCloseList");
 const btnLoadList = document.getElementById("btnLoadList");
 const listComunidad = document.getElementById("listComunidad");
 const listFilter = document.getElementById("listFilter");
 const tblList = document.getElementById("tblList").querySelector("tbody");
-
-btnLista.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
 
 btnCloseList.addEventListener("click", ()=>{ modalBack.style.display="none"; });
 
@@ -596,7 +597,7 @@ function renderListTable(rows){
 }
 
 // selección desde la tabla
-tblList.addEventListener("click", async (e)=>{
+document.getElementById("tblList").addEventListener("click", async (e)=>{
   const btn = e.target.closest("button[data-unir]");
   if(!btn) return;
   const unir = Number(btn.getAttribute("data-unir"));
@@ -616,15 +617,13 @@ tblList.addEventListener("click", async (e)=>{
   }, 300);
 });
 
-/** ====== MODAL OBSERVADOS (comentario_social ≠ vacío) ====== **/
+/** ====== MODAL OBSERVADOS ====== **/
 const modalObs = document.getElementById("modalObsBack");
-const btnObs = document.getElementById("btnObs");
 const btnCloseObs = document.getElementById("btnCloseObs");
 const btnReloadObs = document.getElementById("btnReloadObs");
 const obsFilter = document.getElementById("obsFilter");
 const tblObs = document.getElementById("tblObs").querySelector("tbody");
 
-btnObs.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
 btnCloseObs.addEventListener("click", ()=>{ modalObs.style.display="none"; });
 btnReloadObs.addEventListener("click", loadObserved);
 obsFilter.addEventListener("input", ()=>{
@@ -663,7 +662,7 @@ function renderObsTable(rows){
 }
 
 // selección desde observados
-tblObs.addEventListener("click", async (e)=>{
+document.getElementById("tblObs").addEventListener("click", async (e)=>{
   const btn = e.target.closest("button[data-unir]");
   if(!btn) return;
   const unir = Number(btn.getAttribute("data-unir"));

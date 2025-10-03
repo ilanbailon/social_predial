@@ -45,9 +45,8 @@
     #suggestions div:hover{background:#f1f5f9}
 
     #rightControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    select,button,input{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px}
-    select,input{background:#fff;border-color:var(--line);color:var(--text)}
-    input.small{width:120px}
+    select,button{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px}
+    select{background:#fff;border-color:var(--line);color:var(--text)}
     .btn{background:var(--accent);color:#fff;cursor:pointer}
     .btn:hover{background:var(--accent-dark)}
     .ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35)}
@@ -60,11 +59,11 @@
     #gutter{width:6px;cursor:col-resize;background:linear-gradient(90deg,transparent,rgba(0,0,0,.08),transparent)}
     #map{position:absolute;inset:0}
 
-    /* Móvil */
+    /* Móvil: 50% mapa / 50% datos */
     @media (max-width: 900px){
       #split{flex-direction:column}
-      #leftPane{flex-basis:auto;height:56vh}
-      #rightPane{height:44vh;border-left:none;border-top:1px solid var(--line)}
+      #leftPane{flex-basis:auto;height:50vh}
+      #rightPane{height:50vh;border-left:none;border-top:1px solid var(--line)}
       #gutter{display:none}
       #rightControls{display:none}
       .mobile-actions{display:flex}
@@ -83,22 +82,21 @@
     .pill:hover{border-color:var(--accent)}
     .muted{color:#64748b;font-size:12px}
     .badge{background:#eef2ff;border:1px solid var(--line);border-radius:999px;padding:4px 8px;font-size:12px}
-
     input,textarea{width:100%;padding:6px;border:1px solid var(--line);border-radius:8px;color:var(--text)}
     .btn-small{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
     .btn-small:hover{border-color:var(--accent)}
     td.clickable{cursor:pointer;text-decoration:underline}
 
-    /* Botones del mapa */
+    /* Botones del mapa: abajo-izquierda */
     .map-btns{
-      position:absolute; left:10px; bottom:10px; z-index:4500; display:flex; flex-direction:column; gap:8px;
+      position:absolute; left:10px; bottom:10px; z-index:4500; display:flex; flex-direction:row; gap:8px; flex-wrap:wrap;
     }
     .map-btn{
       background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)
     }
     .map-btn:hover{border-color:var(--accent)}
 
-    /* Acciones móviles */
+    /* Acciones móviles (derecha-abajo) */
     .mobile-actions{
       position:absolute; right:10px; bottom:10px; z-index:4500; display:none; gap:8px;
     }
@@ -129,7 +127,7 @@
 
     <div id="centerControls">
       <div id="searchWrap">
-        <input id="searchBox" type="text" placeholder="🔍 Buscar cod_prel, cod_mtc o titular…" autocomplete="off" />
+        <input id="searchBox" type="text" placeholder="🔍 Buscar cod_prel, cod_mtc, titular o prog_ini…" autocomplete="off" />
         <div id="suggestions"></div>
       </div>
     </div>
@@ -142,11 +140,6 @@
         <option value="3">3</option><option value="4">4</option>
         <option value="1er_entregable">1er_entregable</option>
       </select>
-
-      <!-- Filtro por prog_ini (rango) -->
-      <input id="progDesde" class="small" type="text" placeholder="Prog. desde (ej. 89+000)">
-      <input id="progHasta" class="small" type="text" placeholder="Prog. hasta (ej. 90+000)">
-
       <button class="btn" id="btnFiltrar">Filtrar</button>
       <button class="ghost" id="btnReset">Reset</button>
       <button class="ghost" id="btnLista">📋 Lista por comunidad</button>
@@ -203,7 +196,7 @@
           <div id="areasList"></div>
         </div>
 
-        <div id="emptyHint" class="muted">Selecciona un polígono o busca por código/titular.</div>
+        <div id="emptyHint" class="muted">Selecciona un polígono o busca por código/titular/prog_ini.</div>
       </div>
     </section>
   </div>
@@ -220,7 +213,7 @@
           <select id="listComunidad" style="min-width:260px"></select>
         </label>
         <label>Filtrar texto:
-          <input id="listFilter" type="text" placeholder="Filtrar por MTC, cod_prel o titular…" style="min-width:260px">
+          <input id="listFilter" type="text" placeholder="Filtrar por MTC, cod_prel, titular o prog_ini…" style="min-width:260px">
         </label>
         <button class="btn" id="btnLoadList">Cargar</button>
       </div>
@@ -232,10 +225,11 @@
               <th>Código MTC</th>
               <th>cod_prel</th>
               <th>Titular</th>
+              <th>prog_ini</th>
               <th>Seleccionar</th>
             </tr>
           </thead>
-          <tbody><tr><td colspan="5" class="muted">Selecciona comunidad y pulsa “Cargar”.</td></tr></tbody>
+          <tbody><tr><td colspan="6" class="muted">Selecciona comunidad y pulsa “Cargar”.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -250,7 +244,7 @@
       </div>
       <div class="row">
         <label>Filtrar texto:
-          <input id="obsFilter" type="text" placeholder="Filtrar por comunidad, MTC, cod_prel o titular…" style="min-width:260px">
+          <input id="obsFilter" type="text" placeholder="Filtrar por comunidad, MTC, cod_prel, titular o prog_ini…" style="min-width:260px">
         </label>
         <button class="btn" id="btnReloadObs">Recargar</button>
       </div>
@@ -262,11 +256,12 @@
               <th>Código MTC</th>
               <th>cod_prel</th>
               <th>Titular</th>
+              <th>prog_ini</th>
               <th>Observación</th>
               <th>Seleccionar</th>
             </tr>
           </thead>
-          <tbody><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody>
+          <tbody><tr><td colspan="7" class="muted">Cargando…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -285,21 +280,15 @@ function isComunidad(v){ return (v||"").toLowerCase()==="comunidad"; }
 function cap(r){ return (r||"").replace(/\b\w/g,m=>m.toUpperCase()); }
 function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 function hasSocial(p){ return !!(p?.comentario_social && String(p.comentario_social).trim().length>0); }
-/* Convierte "89+417" -> 89417; "89417" -> 89417; otros => null */
-function parseProg(v){
-  if(v==null) return null;
-  const digits = String(v).replace(/\D+/g,'');
-  if(!digits) return null;
-  return Number(digits);
-}
 
-/** ====== MAPA ====== **/
-const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([-15.5, -70.1], 15);
+/** ====== MAPA (zoom por defecto 13) ====== **/
+const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([-15.5, -70.1], 13);
 L.control.attribution({ prefix:false }).addTo(map);
 L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom:21, attribution:'© Google' }).addTo(map);
 
 const baseStyle    = { color:getVar('--predio'),    weight:2, fillOpacity:0.20 };
-const commStyle    = { color:getVar('--comunidad'), weight:2, fillOpacity:0.20 };
+the_comm = getVar('--comunidad');
+const commStyle    = { color:the_comm, weight:2, fillOpacity:0.20 };
 const otherStyle   = { color:getVar('--otros'),     weight:2, fillOpacity:0.20 };
 const hiStyle      = { color:getVar('--highlight'), weight:3, fillOpacity:0.35 };
 const socialStyle  = { color:getVar('--social'),    weight:3, fillOpacity:0.30 };
@@ -346,7 +335,6 @@ async function loadAllPredios(){
     .from("cod_pred")
     .select("cod_prel,unir,comunidad,condicion,grupo,codigo_mtc,titular,tipo,geom,dni_ruc,contacto,responsable,fecha_elab,comentario_social,area,prog_ini,prog_fin,lado");
   if(error){ console.error(error); return; }
-
   renderFeatures(data||[]);
 }
 
@@ -486,7 +474,7 @@ function focusByCodPrel(cod){
   }
 }
 
-/** ====== BUSCADOR (cod_prel, cod_mtc, titular) ====== **/
+/** ====== BUSCADOR (cod_prel, cod_mtc, titular, prog_ini) ====== **/
 const searchBox = document.getElementById("searchBox");
 const suggestions = document.getElementById("suggestions");
 let debounceTimer = null;
@@ -501,8 +489,8 @@ searchBox.addEventListener("blur", ()=> setTimeout(()=>{ suggestions.classList.r
 
 async function runSuggest(q){
   const { data, error } = await client.from("cod_pred")
-    .select("cod_prel,codigo_mtc,unir,titular")
-    .or(`cod_prel.ilike.%${q}%,codigo_mtc.ilike.%${q}%,titular.ilike.%${q}%`)
+    .select("cod_prel,codigo_mtc,unir,titular,prog_ini")
+    .or(`cod_prel.ilike.%${q}%,codigo_mtc.ilike.%${q}%,titular.ilike.%${q}%,prog_ini.ilike.%${q}%`)
     .limit(12);
   if(error){ console.error(error); return; }
   suggestions.innerHTML = "";
@@ -510,22 +498,20 @@ async function runSuggest(q){
     const tit = (r.titular||"").toString();
     const titCut = tit.length>60 ? tit.slice(0,57)+'…' : tit;
     const row = document.createElement("div");
-    row.innerHTML = `<b>${r.cod_prel}</b> — MTC: ${r.codigo_mtc ?? "—"}<br><span class="muted">${titCut}</span>`;
+    row.innerHTML = `<b>${r.cod_prel}</b> — MTC: ${r.codigo_mtc ?? "—"} — <span class="muted">prog_ini: ${r.prog_ini??"—"}</span><br><span class="muted">${titCut}</span>`;
     row.onclick = ()=>{ suggestions.classList.remove("active"); showGroup(r.unir); };
     suggestions.appendChild(row);
   });
   suggestions.classList.add("active");
 }
 
-/** ====== FILTROS (Comunidad + Grupo + prog_ini rango) ====== **/
+/** ====== FILTROS (Comunidad + Grupo) ====== **/
 const selCom = document.getElementById("filterComunidad");
 const selGrupo = document.getElementById("filterGrupo");
-const inpProgDesde = document.getElementById("progDesde");
-const inpProgHasta = document.getElementById("progHasta");
 
 document.getElementById("btnFiltrar").addEventListener("click", applyFilters);
 document.getElementById("btnReset").addEventListener("click", async ()=>{
-  selCom.value=""; selGrupo.value=""; searchBox.value=""; inpProgDesde.value=""; inpProgHasta.value="";
+  selCom.value=""; selGrupo.value=""; searchBox.value="";
   await loadAllPredios();
   blockCommon.style.display="none"; wrapAreas.style.display="none"; emptyHint.style.display="";
 });
@@ -548,21 +534,7 @@ async function applyFilters(){
 
   const { data, error } = await q;
   if(error){ console.error(error); return; }
-
-  // Filtro por prog_ini (rango) en cliente
-  const d = data||[];
-  const pMin = parseProg(inpProgDesde.value);
-  const pMax = parseProg(inpProgHasta.value);
-  const filtered = d.filter(r=>{
-    if(pMin==null && pMax==null) return true;
-    const val = parseProg(r.prog_ini);
-    if(val==null) return false;
-    if(pMin!=null && val < pMin) return false;
-    if(pMax!=null && val > pMax) return false;
-    return true;
-  });
-
-  renderFeatures(filtered);
+  renderFeatures(data||[]);
 }
 
 /** ====== MODAL LISTA POR COMUNIDAD ====== **/
@@ -583,7 +555,7 @@ btnLoadList.addEventListener("click", async ()=>{
   const com = listComunidad.value;
   if(!com){ alert("Selecciona una comunidad"); return; }
   const { data, error } = await client.from("cod_pred")
-    .select("comunidad,codigo_mtc,cod_prel,titular,unir")
+    .select("comunidad,codigo_mtc,cod_prel,titular,unir,prog_ini")
     .eq("comunidad", com).order("codigo_mtc",{ascending:true});
   if(error){ alert("Error: "+error.message); return; }
   renderListTable(data||[]);
@@ -599,13 +571,14 @@ listFilter.addEventListener("input", ()=>{
 });
 
 function renderListTable(rows){
-  if(rows.length===0){ tblList.innerHTML = `<tr><td colspan="5" class="muted">Sin resultados.</td></tr>`; return; }
+  if(rows.length===0){ tblList.innerHTML = `<tr><td colspan="6" class="muted">Sin resultados.</td></tr>`; return; }
   tblList.innerHTML = rows.map(r=>`
     <tr>
       <td>${esc(r.comunidad)}</td>
       <td>${esc(r.codigo_mtc||"")}</td>
       <td>${esc(r.cod_prel||"")}</td>
       <td>${esc(r.titular||"")}</td>
+      <td>${esc(r.prog_ini||"")}</td>
       <td><button class="btn-small" data-unir="${r.unir}" data-cod="${esc(r.cod_prel)}">Seleccionar</button></td>
     </tr>
   `).join("");
@@ -654,28 +627,26 @@ obsFilter.addEventListener("input", ()=>{
   });
 });
 
-/* NOTA: si tu columna de observaciones se llama distinto,
-   reemplaza 'comentario_social' por 'observaciones' en el SELECT y filtro */
 async function loadObserved(){
-  tblObs.innerHTML = `<tr><td colspan="6" class="muted">Cargando…</td></tr>`;
+  tblObs.innerHTML = `<tr><td colspan="7" class="muted">Cargando…</td></tr>`;
   const { data, error } = await client.from("cod_pred")
-    .select("comunidad,codigo_mtc,cod_prel,titular,unir,comentario_social")
+    .select("comunidad,codigo_mtc,cod_prel,titular,unir,prog_ini,comentario_social")
     .not("comentario_social","is",null);
-  if(error){ tblObs.innerHTML = `<tr><td colspan="6">Error: ${esc(error.message)}</td></tr>`; return; }
+  if(error){ tblObs.innerHTML = `<tr><td colspan="7">Error: ${esc(error.message)}</td></tr>`; return; }
   const rows = (data||[]).filter(r => String(r.comentario_social||"").trim().length>0);
   renderObsTable(rows);
-  // filtro por defecto: vacío => muestra todos
   obsFilter.value = "";
 }
 
 function renderObsTable(rows){
-  if(rows.length===0){ tblObs.innerHTML = `<tr><td colspan="6" class="muted">No hay códigos observados.</td></tr>`; return; }
+  if(rows.length===0){ tblObs.innerHTML = `<tr><td colspan="7" class="muted">No hay códigos observados.</td></tr>`; return; }
   tblObs.innerHTML = rows.map(r=>`
     <tr>
       <td>${esc(r.comunidad)}</td>
       <td>${esc(r.codigo_mtc||"")}</td>
       <td>${esc(r.cod_prel||"")}</td>
       <td>${esc(r.titular||"")}</td>
+      <td>${esc(r.prog_ini||"")}</td>
       <td>${esc(r.comentario_social||"")}</td>
       <td><button class="btn-small" data-unir="${r.unir}" data-cod="${esc(r.cod_prel)}">Seleccionar</button></td>
     </tr>

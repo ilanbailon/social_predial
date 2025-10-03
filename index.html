@@ -66,7 +66,8 @@
       #rightPane{height:50vh;border-left:none;border-top:1px solid var(--line)}
       #gutter{display:none}
       #rightControls{display:none}
-      .mobile-actions{display:flex}
+      /* mostrar sólo en móvil el control rápido bajo capas */
+      .leaflet-control.mobile-quick{display:block}
     }
 
     .panel{padding:16px}
@@ -87,7 +88,7 @@
     .btn-small:hover{border-color:var(--accent)}
     td.clickable{cursor:pointer;text-decoration:underline}
 
-    /* Botones del mapa: abajo-izquierda */
+    /* Botones del mapa: abajo-izquierda (ubicación) */
     .map-btns{
       position:absolute; left:10px; bottom:10px; z-index:4500; display:flex; flex-direction:row; gap:8px; flex-wrap:wrap;
     }
@@ -96,25 +97,17 @@
     }
     .map-btn:hover{border-color:var(--accent)}
 
-    /* Acciones móviles (derecha-abajo) */
-    .mobile-actions{
-      position:absolute; right:10px; bottom:10px; z-index:4500; display:none; gap:8px;
+    /* Control rápido SOLO móvil (oculto por defecto, visible en media query) */
+    .leaflet-control.mobile-quick{
+      display:none;
+      background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px; margin-top:6px;
+      box-shadow:0 2px 6px rgba(0,0,0,.15);
     }
-    .mobile-actions .map-btn{padding:8px 12px}
-
-    /* Modal genérico */
-    .modal-back{
-      position:fixed; inset:60px 0 0 0; display:none;
-      align-items:center; justify-content:center; background:rgba(0,0,0,.25); z-index:7000;
+    .mobile-quick .btn-quick{
+      display:block; width:100%; margin:4px 0; background:#fff; border:1px solid var(--line);
+      border-radius:6px; padding:6px 10px; font-size:14px; cursor:pointer;
     }
-    .modal{
-      width:min(920px,94vw); background:#fff; border-radius:12px; padding:12px;
-      box-shadow:0 20px 40px rgba(0,0,0,.25);
-    }
-    table.list{border-collapse:collapse;width:100%}
-    table.list th, table.list td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;background:#fff}
-    table.list th{background:#f6f6f6}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px}
+    .mobile-quick .btn-quick:hover{border-color:var(--accent)}
     .flash { animation: flash 1s ease-out 1; }
     @keyframes flash { 0% { box-shadow:0 0 0 rgba(14,165,233,0); background:#fff; }
       20%{ box-shadow:0 0 0 6px rgba(14,165,233,.15); background:#e0f2fe; }
@@ -151,13 +144,9 @@
     <section id="leftPane">
       <div id="map"></div>
 
-      <!-- Acciones (ubicación + móviles) -->
+      <!-- Botón de ubicación -->
       <div class="map-btns">
         <button id="btnLocate" class="map-btn" title="Ubicarme">📍</button>
-      </div>
-      <div class="mobile-actions">
-        <button id="btnLista_m" class="map-btn">📋 Lista</button>
-        <button id="btnObs_m" class="map-btn">👁 Obs.</button>
       </div>
     </section>
 
@@ -190,7 +179,7 @@
           </div>
         </div>
 
-        <!-- Áreas afectadas (con edición SOLO de comentario_social) -->
+        <!-- Áreas afectadas (edición SOLO de comentario_social) -->
         <div id="areasWrap" class="block" style="display:none">
           <div class="label">Áreas afectadas</div>
           <div id="areasList"></div>
@@ -278,7 +267,7 @@ function getVar(n){ return getComputedStyle(document.documentElement).getPropert
 function isPredios(v){ return (v||"").toLowerCase()==="predios" || (v||"").toLowerCase()==="predio"; }
 function isComunidad(v){ return (v||"").toLowerCase()==="comunidad"; }
 function cap(r){ return (r||"").replace(/\b\w/g,m=>m.toUpperCase()); }
-function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;","&gt;":">","\"":"&quot;","'":"&#39;"}[m])); }
 function hasSocial(p){ return !!(p?.comentario_social && String(p.comentario_social).trim().length>0); }
 
 /** ====== MAPA (zoom por defecto 13) ====== **/
@@ -287,8 +276,7 @@ L.control.attribution({ prefix:false }).addTo(map);
 L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom:21, attribution:'© Google' }).addTo(map);
 
 const baseStyle    = { color:getVar('--predio'),    weight:2, fillOpacity:0.20 };
-the_comm = getVar('--comunidad');
-const commStyle    = { color:the_comm, weight:2, fillOpacity:0.20 };
+const commStyle    = { color:getVar('--comunidad'), weight:2, fillOpacity:0.20 };
 const otherStyle   = { color:getVar('--otros'),     weight:2, fillOpacity:0.20 };
 const hiStyle      = { color:getVar('--highlight'), weight:3, fillOpacity:0.35 };
 const socialStyle  = { color:getVar('--social'),    weight:3, fillOpacity:0.30 };
@@ -307,7 +295,31 @@ const capaPredio    = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).
 const capaComunidad = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).addTo(map);
 const capaOtros     = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).addTo(map);
 
-L.control.layers(null, { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros }).addTo(map);
+/* Capas (control) */
+const layersCtl = L.control.layers(null, { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros }).addTo(map);
+
+/* Control rápido móvil (aparece DEBAJO del control de capas) */
+const MobileQuick = L.Control.extend({
+  onAdd: function(){
+    const div = L.DomUtil.create('div', 'leaflet-control mobile-quick');
+    div.innerHTML = `
+      <button id="btnLista_m" class="btn-quick">📋 Lista por comunidad</button>
+      <button id="btnObs_m" class="btn-quick">👁 Observados</button>
+    `;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  }
+});
+const mobileQuick = new MobileQuick({ position:'topright' }).addTo(map);
+
+/* Handlers para los botones móviles (después de crearlos) */
+function attachMobileQuickHandlers(){
+  const b1 = document.getElementById("btnLista_m");
+  const b2 = document.getElementById("btnObs_m");
+  if(b1) b1.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
+  if(b2) b2.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
+}
+attachMobileQuickHandlers();
 
 /** ====== GEOLOCALIZACIÓN (botón abajo-izquierda) ====== **/
 let locateMarker = null, locateCircle = null;
@@ -540,7 +552,6 @@ async function applyFilters(){
 /** ====== MODAL LISTA POR COMUNIDAD ====== **/
 const modalBack = document.getElementById("modalListBack");
 const btnLista = document.getElementById("btnLista");
-const btnLista_m = document.getElementById("btnLista_m");
 const btnCloseList = document.getElementById("btnCloseList");
 const btnLoadList = document.getElementById("btnLoadList");
 const listComunidad = document.getElementById("listComunidad");
@@ -548,7 +559,7 @@ const listFilter = document.getElementById("listFilter");
 const tblList = document.getElementById("tblList").querySelector("tbody");
 
 btnLista.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
-btnLista_m.addEventListener("click", ()=>{ modalBack.style.display="flex"; });
+
 btnCloseList.addEventListener("click", ()=>{ modalBack.style.display="none"; });
 
 btnLoadList.addEventListener("click", async ()=>{
@@ -608,14 +619,12 @@ tblList.addEventListener("click", async (e)=>{
 /** ====== MODAL OBSERVADOS (comentario_social ≠ vacío) ====== **/
 const modalObs = document.getElementById("modalObsBack");
 const btnObs = document.getElementById("btnObs");
-const btnObs_m = document.getElementById("btnObs_m");
 const btnCloseObs = document.getElementById("btnCloseObs");
 const btnReloadObs = document.getElementById("btnReloadObs");
 const obsFilter = document.getElementById("obsFilter");
 const tblObs = document.getElementById("tblObs").querySelector("tbody");
 
 btnObs.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
-btnObs_m.addEventListener("click", async ()=>{ modalObs.style.display="flex"; await loadObserved(); });
 btnCloseObs.addEventListener("click", ()=>{ modalObs.style.display="none"; });
 btnReloadObs.addEventListener("click", loadObserved);
 obsFilter.addEventListener("input", ()=>{

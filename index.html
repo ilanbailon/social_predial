@@ -24,21 +24,18 @@
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;overflow:hidden;color:var(--text)}
     body{display:flex;flex-direction:column;height:100%}
     header{
-      display:flex;align-items:center;gap:10px;
+      display:flex;align-items:center;gap:12px;flex-wrap:nowrap;
       padding:10px 14px;background:var(--brand);color:#fff;position:relative;z-index:5000;
       box-shadow:0 2px 10px rgba(0,0,0,.25);
-
-
-      flex-wrap:wrap;
-
+      overflow-x:auto;
     }
-
+    header > *{flex:0 0 auto;min-width:0}
     header{scrollbar-width:thin}
     header::-webkit-scrollbar{height:4px}
     header::-webkit-scrollbar-thumb{background:rgba(255,255,255,.35);border-radius:999px}
-    header .title{font-weight:700;letter-spacing:.3px;flex:0 0 auto;white-space:nowrap}
-    #centerControls{flex:1 1 auto;display:flex;justify-content:center;position:relative;min-width:160px}
-    #searchWrap{position:relative;width:100%;max-width:560px}
+    header .title{font-weight:700;letter-spacing:.3px;white-space:nowrap}
+    #centerControls{flex:1 1 360px;display:flex;justify-content:center;position:relative;min-width:220px}
+    #searchWrap{position:relative;width:100%;max-width:560px;min-width:200px}
     #searchBox{
       width:100%;padding:10px 14px;border-radius:24px;border:none;outline:none;
       font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.15) inset, 0 1px 0 rgba(255,255,255,.1);
@@ -53,12 +50,12 @@
     #suggestions div{padding:8px 10px;cursor:pointer}
     #suggestions div:hover{background:#f1f5f9}
 
-
-    #rightControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    #mobileActions{display:none;gap:8px;width:100%;justify-content:center;flex-wrap:wrap;margin-top:8px}
-    #mobileActions button{flex:1 1 160px}
-    select,button{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px}
-
+    #rightControls{
+      display:flex;align-items:center;gap:8px;
+      flex-wrap:nowrap;
+    }
+    #rightControls select,#rightControls button{flex:0 0 auto;white-space:nowrap}
+    select,button{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px;min-width:0}
     select{background:#fff;border-color:var(--line);color:var(--text)}
     #filterComunidad{width:150px;font-size:13px}
     #filterGrupo{width:130px;font-size:13px}
@@ -77,20 +74,39 @@
 
     /* Móvil: 50% mapa / 50% datos */
     @media (max-width: 900px){
-
-      header{justify-content:center}
-      #centerControls{order:3;width:100%}
-
+      header{padding:8px 10px;gap:10px}
+      .title{font-size:15px}
+      #centerControls{min-width:200px;flex:1 1 300px}
+      #searchWrap{min-width:180px}
+      #searchBox{font-size:13px;padding:8px 12px}
+      #rightControls{gap:7px}
       #split{flex-direction:column}
       #leftPane{flex-basis:auto;height:50vh}
       #rightPane{height:50vh;border-left:none;border-top:1px solid var(--line)}
       #gutter{display:none}
-
-      #rightControls{display:none}
-      #mobileActions{display:flex}
-      .leaflet-control.mobile-quick{display:block !important;} /* <- hace visible el control en móvil */
-
     }
+
+    @media (max-width: 720px){
+      header{gap:8px}
+      #centerControls{min-width:170px;flex:1 1 240px}
+      #searchWrap{min-width:160px}
+      #filterComunidad,#filterGrupo{width:auto;min-width:110px;font-size:12px;padding:6px 8px}
+      select,button{font-size:13px}
+      .icon-btn{min-width:36px;padding:6px;font-size:16px}
+      #rightControls{gap:6px}
+    }
+
+    @media (max-width: 520px){
+      header{gap:6px}
+      .title{font-size:14px}
+      #centerControls{min-width:140px;flex:1 1 200px}
+      #filterComunidad,#filterGrupo{min-width:96px;font-size:11px;padding:6px 7px}
+      #searchWrap{min-width:140px}
+      #searchBox{padding:7px 10px;font-size:12px}
+      .icon-btn{min-width:34px;padding:6px;font-size:15px}
+    }
+
+    .leaflet-control.mobile-quick{display:none!important}
 
     .modal-back{
       position:fixed;inset:0;background:rgba(15,23,42,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:7000;
@@ -103,13 +119,13 @@
     .modal label input,.modal label select{margin-top:4px}
     .modal table{width:100%;border-collapse:collapse}
     .modal th,.modal td{border:1px solid var(--line);padding:8px;font-size:14px;text-align:left}
+    .modal table.list th,.modal table.list td{font-size:10px}
     .modal thead{background:#f1f5f9;position:sticky;top:0;z-index:1}
     .modal-back.show{display:flex}
 
     @media (max-width: 600px){
       .modal .row{flex-direction:column;align-items:stretch}
       .modal .row > *{width:100%}
-      #mobileActions button{flex:1 1 100%}
     }
 
     .panel{padding:16px}
@@ -168,10 +184,6 @@
       <button class="ghost icon-btn" id="btnReset" aria-label="Reiniciar filtros" title="Reiniciar filtros">♻️</button>
       <button class="ghost icon-btn" id="btnLista" aria-label="Lista por comunidad" title="Lista por comunidad">📋</button>
       <button class="ghost icon-btn" id="btnObs" aria-label="Observados" title="Observados">👁️</button>
-    </div>
-    <div id="mobileActions">
-      <button class="ghost" id="btnListaMobile">📋 Lista por comunidad</button>
-      <button class="ghost" id="btnObsMobile">👁 Observados</button>
     </div>
   </header>
 
@@ -337,49 +349,14 @@ document.addEventListener("keydown", (e)=>{
   if(e.key === "Escape"){ hideModal(modalBack); hideModal(modalObs); }
 });
 
-
-/* Control rápido SOLO móvil (debajo del de capas) */
-const MobileQuick = L.Control.extend({
-  onAdd: function(){
-    const div = L.DomUtil.create('div', 'leaflet-control mobile-quick');
-    div.innerHTML = `
-      <button id="btnLista_m" class="btn-quick">📋 Lista por comunidad</button>
-      <button id="btnObs_m" class="btn-quick">👁 Observados</button>
-    `;
-    L.DomEvent.disableClickPropagation(div);
-    return div;
-  }
-});
-const mobileQuick = new MobileQuick({ position:'topright' }).addTo(map);
-
-/* Handlers para botones de cabecera (PC y móvil) */
+/* Handlers para botones de cabecera */
 [
   ["btnLista", ()=> showModal(modalBack)],
-  ["btnListaMobile", ()=> showModal(modalBack)],
-  ["btnObs", async ()=>{ showModal(modalObs); await loadObserved(); }],
-  ["btnObsMobile", async ()=>{ showModal(modalObs); await loadObserved(); }]
+  ["btnObs", async ()=>{ showModal(modalObs); await loadObserved(); }]
 ].forEach(([id, handler])=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener("click", handler);
 });
-
-/* Handlers para botones del control móvil */
-function attachMobileQuickHandlers(){
-  const b1 = document.getElementById("btnLista_m");
-  const b2 = document.getElementById("btnObs_m");
-  if(b1 && !b1._bound){
-    b1.addEventListener("click", ()=>{ showModal(modalBack); });
-    b1._bound = true;
-  }
-  if(b2 && !b2._bound){
-    b2.addEventListener("click", async ()=>{ showModal(modalObs); await loadObserved(); });
-    b2._bound = true;
-  }
-}
-attachMobileQuickHandlers();
-/* Re-atacha si Leaflet vuelve a pintar el control o cambia el DOM */
-const mo = new MutationObserver(()=> attachMobileQuickHandlers());
-mo.observe(document.body, { childList:true, subtree:true });
 
 
 /** ====== GEOLOCALIZACIÓN (botón abajo-izquierda) ====== **/

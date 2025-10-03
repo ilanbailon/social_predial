@@ -22,15 +22,21 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;overflow:hidden;color:var(--text)}
+    body{display:flex;flex-direction:column;height:100%}
     header{
-      display:flex;gap:12px;align-items:center;justify-content:space-between;
-      padding:10px 16px;background:var(--brand);color:#fff;position:relative;z-index:5000;
+      display:flex;align-items:center;gap:10px;
+      padding:10px 14px;background:var(--brand);color:#fff;position:relative;z-index:5000;
       box-shadow:0 2px 10px rgba(0,0,0,.25);
+
       flex-wrap:wrap;
+
     }
-    header .title{font-weight:700;letter-spacing:.3px}
-    #centerControls{flex:1;display:flex;justify-content:center;position:relative}
-    #searchWrap{position:relative;width:min(560px,92%)}
+    header{scrollbar-width:thin}
+    header::-webkit-scrollbar{height:4px}
+    header::-webkit-scrollbar-thumb{background:rgba(255,255,255,.35);border-radius:999px}
+    header .title{font-weight:700;letter-spacing:.3px;flex:0 0 auto;white-space:nowrap}
+    #centerControls{flex:1 1 auto;display:flex;justify-content:center;position:relative;min-width:160px}
+    #searchWrap{position:relative;width:100%;max-width:560px}
     #searchBox{
       width:100%;padding:10px 14px;border-radius:24px;border:none;outline:none;
       font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.15) inset, 0 1px 0 rgba(255,255,255,.1);
@@ -45,46 +51,43 @@
     #suggestions div{padding:8px 10px;cursor:pointer}
     #suggestions div:hover{background:#f1f5f9}
 
+
     #rightControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     #mobileActions{display:none;gap:8px;width:100%;justify-content:center;flex-wrap:wrap;margin-top:8px}
     #mobileActions button{flex:1 1 160px}
     select,button{padding:8px 10px;border-radius:8px;border:1px solid transparent;font-size:14px}
+
     select{background:#fff;border-color:var(--line);color:var(--text)}
+    #filterComunidad{width:150px;font-size:13px}
+    #filterGrupo{width:130px;font-size:13px}
     .btn{background:var(--accent);color:#fff;cursor:pointer}
     .btn:hover{background:var(--accent-dark)}
     .ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35)}
     .ghost:hover{border-color:#fff}
+    .icon-btn{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:8px;border-radius:8px;font-size:18px;line-height:1}
 
     /* Layout PC por defecto */
-    #split{display:flex;height:calc(100% - 60px);min-height:300px}
-    #leftPane{flex-basis:60%;position:relative;background:#000}
-    #rightPane{flex:1;background:var(--panel-bg);border-left:1px solid var(--line);overflow:auto}
+    #split{display:flex;flex:1;min-height:300px}
+    #leftPane{flex:1 1 50%;position:relative;background:#000}
+    #rightPane{flex:1 1 50%;background:var(--panel-bg);border-left:1px solid var(--line);overflow:auto}
     #gutter{width:6px;cursor:col-resize;background:linear-gradient(90deg,transparent,rgba(0,0,0,.08),transparent)}
     #map{position:absolute;inset:0}
 
-    /* Control rápido móvil (oculto por defecto) — IMPORTANTE: esta regla va ANTES del @media */
-    .leaflet-control.mobile-quick{
-      display:none;
-      background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px; margin-top:6px;
-      box-shadow:0 2px 6px rgba(0,0,0,.15);
-    }
-    .mobile-quick .btn-quick{
-      display:block; width:100%; margin:4px 0; background:#fff; border:1px solid var(--line);
-      border-radius:6px; padding:6px 10px; font-size:14px; cursor:pointer;
-    }
-    .mobile-quick .btn-quick:hover{border-color:var(--accent)}
-
-    /* Móvil: 50% mapa / 50% datos y mostrar control rápido */
+    /* Móvil: 50% mapa / 50% datos */
     @media (max-width: 900px){
+
       header{justify-content:center}
       #centerControls{order:3;width:100%}
+
       #split{flex-direction:column}
       #leftPane{flex-basis:auto;height:50vh}
       #rightPane{height:50vh;border-left:none;border-top:1px solid var(--line)}
       #gutter{display:none}
+
       #rightControls{display:none}
       #mobileActions{display:flex}
       .leaflet-control.mobile-quick{display:block !important;} /* <- hace visible el control en móvil */
+
     }
 
     .modal-back{
@@ -159,10 +162,10 @@
         <option value="3">3</option><option value="4">4</option>
         <option value="1er_entregable">1er_entregable</option>
       </select>
-      <button class="btn" id="btnFiltrar">Filtrar</button>
-      <button class="ghost" id="btnReset">Reset</button>
-      <button class="ghost" id="btnLista">📋 Lista por comunidad</button>
-      <button class="ghost" id="btnObs">👁 Observados</button>
+      <button class="btn icon-btn" id="btnFiltrar" aria-label="Filtrar" title="Filtrar">✅</button>
+      <button class="ghost icon-btn" id="btnReset" aria-label="Reiniciar filtros" title="Reiniciar filtros">♻️</button>
+      <button class="ghost icon-btn" id="btnLista" aria-label="Lista por comunidad" title="Lista por comunidad">📋</button>
+      <button class="ghost icon-btn" id="btnObs" aria-label="Observados" title="Observados">👁️</button>
     </div>
     <div id="mobileActions">
       <button class="ghost" id="btnListaMobile">📋 Lista por comunidad</button>
@@ -332,6 +335,7 @@ document.addEventListener("keydown", (e)=>{
   if(e.key === "Escape"){ hideModal(modalBack); hideModal(modalObs); }
 });
 
+
 /* Control rápido SOLO móvil (debajo del de capas) */
 const MobileQuick = L.Control.extend({
   onAdd: function(){
@@ -374,6 +378,7 @@ attachMobileQuickHandlers();
 /* Re-atacha si Leaflet vuelve a pintar el control o cambia el DOM */
 const mo = new MutationObserver(()=> attachMobileQuickHandlers());
 mo.observe(document.body, { childList:true, subtree:true });
+
 
 /** ====== GEOLOCALIZACIÓN (botón abajo-izquierda) ====== **/
 let locateMarker = null, locateCircle = null;

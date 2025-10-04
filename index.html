@@ -25,9 +25,9 @@
     body{display:flex;flex-direction:column;height:100%}
     header{
       display:flex;align-items:center;gap:12px;flex-wrap:nowrap;
-      padding:10px 14px;background:var(--brand);color:#fff;position:relative;z-index:5000;
+      padding:10px 14px;background:var(--brand);color:#fff;position:relative;z-index:6000;
       box-shadow:0 2px 10px rgba(0,0,0,.25);
-      overflow-x:auto;
+      overflow-x:auto;flex-shrink:0;
     }
     header > *{flex:0 0 auto;min-width:0}
     header{scrollbar-width:thin}
@@ -43,7 +43,7 @@
     }
     #suggestions{
       position:absolute;left:0;right:0;top:44px;background:#fff;
-      border:1px solid var(--line);border-radius:10px;z-index:6000;
+      border:1px solid var(--line);border-radius:10px;z-index:6500;
       max-height:260px;overflow:auto;display:none;color:var(--text);
     }
     #suggestions.active{display:block}
@@ -66,8 +66,8 @@
     .icon-btn{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:8px;border-radius:8px;font-size:18px;line-height:1}
 
     /* Layout PC por defecto */
-    #split{display:flex;flex:1;min-height:300px}
-    #leftPane{flex:1 1 50%;position:relative;background:#000}
+    #split{display:flex;flex:1;min-height:300px;position:relative}
+    #leftPane{flex:1 1 50%;position:relative;background:#000;z-index:0}
     #rightPane{flex:1 1 50%;background:var(--panel-bg);border-left:1px solid var(--line);overflow:auto}
     #gutter{width:6px;cursor:col-resize;background:linear-gradient(90deg,transparent,rgba(0,0,0,.08),transparent)}
     #map{position:absolute;inset:0}
@@ -231,6 +231,7 @@
           <input id="listFilter" type="text" placeholder="Filtrar por MTC, cod_prel, titular o prog_ini…" style="min-width:260px">
         </label>
         <button class="btn" id="btnLoadList">Cargar</button>
+        <button class="btn-small" id="btnExportList" title="Exportar a Excel">📄</button>
       </div>
       <div style="max-height:60vh;overflow:auto">
         <table class="list" id="tblList">
@@ -262,6 +263,8 @@
           <input id="obsFilter" type="text" placeholder="Filtrar por comunidad, MTC, cod_prel, titular o prog_ini…" style="min-width:260px">
         </label>
         <button class="btn" id="btnReloadObs">Recargar</button>
+        <button class="btn-small" id="btnExportObsXls" title="Exportar a Excel">📄</button>
+        <button class="btn-small" id="btnExportObsKml" title="Exportar a KML">🗺️</button>
       </div>
       <div style="max-height:60vh;overflow:auto">
         <table class="list" id="tblObs">
@@ -292,8 +295,17 @@ const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 function getVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function isPredios(v){ return (v||"").toLowerCase()==="predios" || (v||"").toLowerCase()==="predio"; }
 function isComunidad(v){ return (v||"").toLowerCase()==="comunidad"; }
-function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;"," >": "&gt;","\"":"&quot;","'":"&#39;"}[m]||m)); }
+function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]||m)); }
 function hasSocial(p){ return !!(p?.comentario_social && String(p.comentario_social).trim().length>0); }
+
+const PREDIOS_CACHE_KEY = "prediosCache.v1";
+const PREDIOS_CACHE_TTL = 1000 * 60 * 30; // 30 minutos
+
+let cachedPredios = [];
+let cachedPrediosMap = new Map();
+let lastListRows = [];
+let lastObsRows = [];
+let initialFitCompleted = false;
 
 /** ====== MAPA (zoom por defecto 13) ====== **/
 const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([-15.5, -70.1], 13);
@@ -305,6 +317,7 @@ const commStyle    = { color:getVar('--comunidad'), weight:2, fillOpacity:0.20 }
 const otherStyle   = { color:getVar('--otros'),     weight:2, fillOpacity:0.20 };
 const hiStyle      = { color:getVar('--highlight'), weight:3, fillOpacity:0.35 };
 const socialStyle  = { color:getVar('--social'),    weight:3, fillOpacity:0.30 };
+const viaStyle     = { color:'#f97316',             weight:3, dashArray:'8 4', fillOpacity:0 };
 
 function styleByProps(p){
   if(hasSocial(p)) return socialStyle;
@@ -321,7 +334,59 @@ const capaComunidad = L.geoJSON(null, { style: f=>styleByProps(f.properties) });
 const capaOtros     = L.geoJSON(null, { style: f=>styleByProps(f.properties) }).addTo(map);
 
 /* Capas (control) */
-const layersCtl = L.control.layers(null, { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros }).addTo(map);
+const overlayLayers = { "Predios":capaPredio, "Comunidades":capaComunidad, "Otros":capaOtros };
+const layersCtl = L.control.layers(null, overlayLayers).addTo(map);
+
+const externalScriptCache = new Map();
+
+function ensureScriptLoaded(path){
+  if(externalScriptCache.has(path)) return externalScriptCache.get(path);
+  const promise = new Promise((resolve, reject)=>{
+    const script = document.createElement("script");
+    script.src = path;
+    script.async = true;
+    script.onload = ()=> resolve();
+    script.onerror = ()=> reject(new Error(`No se pudo cargar ${path}`));
+    document.head.appendChild(script);
+  });
+  externalScriptCache.set(path, promise);
+  return promise;
+}
+
+async function loadExternalGeoJSON(path, keys){
+  try{
+    await ensureScriptLoaded(path);
+    for(const key of keys){
+      const data = window[key];
+      if(data){
+        if(data.default) return data.default;
+        return data;
+      }
+    }
+    console.warn(`No se encontró ninguna variable (${keys.join(", ")}) en ${path}`);
+  }catch(err){
+    console.warn(`No se pudo cargar ${path}`, err);
+  }
+  return null;
+}
+
+async function bootExtraLayers(){
+  const configs = [
+    { path:"capas/comunidades.js", keys:["CAPA_COMUNIDADES","capaComunidades","comunidadesGeojson","comunidades","CAPA_comunidades"], name:"Comunidades (GeoJSON)", style:commStyle },
+    { path:"capas/derecho_via.js", keys:["CAPA_DERECHO_VIA","capaDerechoVia","derechoViaGeojson","derecho_via","derechoVia"], name:"Derecho de vía", style:viaStyle }
+  ];
+  for(const cfg of configs){
+    const data = await loadExternalGeoJSON(cfg.path, cfg.keys);
+    if(data && typeof L !== "undefined"){
+      try{
+        const layer = L.geoJSON(data, { style: cfg.style });
+        layersCtl.addOverlay(layer, cfg.name);
+      }catch(err){
+        console.warn(`No se pudo agregar la capa ${cfg.name}`, err);
+      }
+    }
+  }
+}
 
 const modalBack = document.getElementById("modalListBack");
 const modalObs = document.getElementById("modalObsBack");
@@ -338,7 +403,7 @@ document.addEventListener("keydown", (e)=>{
 /* Handlers para botones de cabecera */
 [
   ["btnLista", ()=> showModal(modalBack)],
-  ["btnObs", async ()=>{ showModal(modalObs); await loadObserved(); }]
+  ["btnObs", async ()=>{ showModal(modalObs); await loadObserved(true); }]
 ].forEach(([id, handler])=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener("click", handler);
@@ -365,15 +430,20 @@ document.getElementById('btnLocate').addEventListener('click', ()=>{
 });
 
 /** ====== CARGA DE DATOS ====== **/
-async function loadAllPredios(){
+async function loadAllPredios(options={}){
+  const { fit = false } = options;
   const { data, error } = await client
     .from("cod_pred")
     .select("cod_prel,unir,comunidad,condicion,grupo,codigo_mtc,titular,tipo,geom,dni_ruc,contacto,responsable,fecha_elab,comentario_social,area,prog_ini,prog_fin,lado");
-  if(error){ console.error(error); return; }
-  renderFeatures(data||[]);
+  if(error){ console.error(error); return null; }
+  const rows = data||[];
+  applyPredioRows(rows, { fitBounds: fit });
+  savePrediosCache(rows);
+  return rows;
 }
 
-function renderFeatures(rows){
+function renderFeatures(rows, options={}){
+  const { fitBounds=false } = options;
   capaPredio.clearLayers(); capaComunidad.clearLayers(); capaOtros.clearLayers();
 
   rows.forEach(p=>{
@@ -393,7 +463,58 @@ function renderFeatures(rows){
   const bounds = capaPredio.getLayers().length ? capaPredio.getBounds()
                : capaComunidad.getLayers().length ? capaComunidad.getBounds()
                : capaOtros.getLayers().length ? capaOtros.getBounds() : null;
-  if(bounds) map.fitBounds(bounds);
+  if(bounds && (fitBounds || !initialFitCompleted)){
+    map.fitBounds(bounds);
+    initialFitCompleted = true;
+  }
+}
+
+function supportsStorage(){
+  try{ return typeof localStorage !== "undefined"; }
+  catch(_){ return false; }
+}
+
+function loadPrediosCache(){
+  if(!supportsStorage()) return null;
+  try{
+    const raw = localStorage.getItem(PREDIOS_CACHE_KEY);
+    if(!raw) return null;
+    const payload = JSON.parse(raw);
+    if(!payload?.rows || !Array.isArray(payload.rows)) return null;
+    if(!payload.time || (Date.now() - payload.time) > PREDIOS_CACHE_TTL) return null;
+    return payload.rows;
+  }catch(err){ console.warn("Cache predios inválida", err); return null; }
+}
+
+function savePrediosCache(rows){
+  if(!supportsStorage()) return;
+  try{
+    localStorage.setItem(PREDIOS_CACHE_KEY, JSON.stringify({ time: Date.now(), rows }));
+  }catch(err){ console.warn("No se pudo guardar la cache de predios", err); }
+}
+
+function populateCommunityOptions(rows){
+  const selList = document.getElementById("listComunidad");
+  if(!selList) return;
+  const prev = selList.value;
+  const comunidades = [...new Set((rows||[]).map(d=>d.comunidad).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b, "es", { sensitivity:"base" }));
+  selList.innerHTML = '<option value="">— Selecciona —</option>';
+  comunidades.forEach(v=>{
+    const o=document.createElement("option");
+    o.value=v; o.textContent=v;
+    selList.appendChild(o);
+  });
+  if(prev && comunidades.includes(prev)) selList.value = prev;
+}
+
+function applyPredioRows(rows, options={}){
+  const { fitBounds=false } = options;
+  cachedPredios = Array.isArray(rows) ? rows : [];
+  cachedPrediosMap = new Map(cachedPredios.map(r=>[r.cod_prel, r]));
+  renderFeatures(cachedPredios, { fitBounds });
+  populateCommunityOptions(cachedPredios);
+  if(currentUnirId) highlightGroup(currentUnirId, false);
 }
 
 /** ====== DESTACAR GRUPO (UNIR) ====== **/
@@ -538,33 +659,38 @@ async function runSuggest(q){
   suggestions.classList.add("active");
 }
 
-/** ====== OPCIONES DE COMUNIDAD ====== **/
-async function hydrateCommunityOptions(){
-  const { data, error } = await client.from("cod_pred").select("comunidad").not("geom","is",null);
-  if(error) return;
-  const comunidades = [...new Set((data||[]).map(d=>d.comunidad).filter(Boolean))].sort();
-  const selList = document.getElementById("listComunidad");
-  selList.innerHTML = '<option value="">— Selecciona —</option>';
-  comunidades.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selList.appendChild(o); });
-}
-
 /** ====== MODAL LISTA POR COMUNIDAD ====== **/
 const btnCloseList = document.getElementById("btnCloseList");
 const btnLoadList = document.getElementById("btnLoadList");
 const listComunidad = document.getElementById("listComunidad");
 const listFilter = document.getElementById("listFilter");
 const tblList = document.getElementById("tblList").querySelector("tbody");
+const btnExportList = document.getElementById("btnExportList");
 
 btnCloseList.addEventListener("click", ()=>{ hideModal(modalBack); });
 
-btnLoadList.addEventListener("click", async ()=>{
+btnLoadList.addEventListener("click", ()=>{
   const com = listComunidad.value;
   if(!com){ alert("Selecciona una comunidad"); return; }
-  const { data, error } = await client.from("cod_pred")
-    .select("comunidad,codigo_mtc,cod_prel,titular,unir,prog_ini")
-    .eq("comunidad", com).order("codigo_mtc",{ascending:true});
-  if(error){ alert("Error: "+error.message); return; }
-  renderListTable(data||[]);
+  if(!cachedPredios.length){
+    alert("Los predios aún se están cargando. Intenta nuevamente en unos segundos.");
+    return;
+  }
+  const rows = cachedPredios
+    .filter(p=>p.comunidad === com)
+    .map(p=>(
+      {
+        comunidad:p.comunidad,
+        codigo_mtc:p.codigo_mtc,
+        cod_prel:p.cod_prel,
+        titular:p.titular,
+        prog_ini:p.prog_ini,
+        unir:p.unir
+      }
+    ))
+    .sort((a,b)=> (a.codigo_mtc||"").localeCompare(b.codigo_mtc||"", undefined, { numeric:true, sensitivity:"base" }));
+  renderListTable(rows);
+  listFilter.value = "";
 });
 
 listFilter.addEventListener("input", ()=>{
@@ -577,7 +703,12 @@ listFilter.addEventListener("input", ()=>{
 });
 
 function renderListTable(rows){
-  if(rows.length===0){ tblList.innerHTML = `<tr><td colspan="6" class="muted">Sin resultados.</td></tr>`; return; }
+  if(!Array.isArray(rows) || rows.length===0){
+    lastListRows = [];
+    tblList.innerHTML = `<tr><td colspan="6" class="muted">Sin resultados.</td></tr>`;
+    return;
+  }
+  lastListRows = rows.map(r=>({ ...r }));
   tblList.innerHTML = rows.map(r=>`
     <tr>
       <td>${esc(r.comunidad)}</td>
@@ -616,9 +747,14 @@ const btnCloseObs = document.getElementById("btnCloseObs");
 const btnReloadObs = document.getElementById("btnReloadObs");
 const obsFilter = document.getElementById("obsFilter");
 const tblObs = document.getElementById("tblObs").querySelector("tbody");
+const btnExportObsXls = document.getElementById("btnExportObsXls");
+const btnExportObsKml = document.getElementById("btnExportObsKml");
 
 btnCloseObs.addEventListener("click", ()=>{ hideModal(modalObs); });
-btnReloadObs.addEventListener("click", loadObserved);
+btnReloadObs.addEventListener("click", async ()=>{
+  await loadAllPredios({ fit:false });
+  await loadObserved(false);
+});
 obsFilter.addEventListener("input", ()=>{
   const term = obsFilter.value.trim().toLowerCase();
   const rows = tblObs.querySelectorAll("tr");
@@ -628,19 +764,45 @@ obsFilter.addEventListener("input", ()=>{
   });
 });
 
-async function loadObserved(){
+async function loadObserved(forceFetch=false){
   tblObs.innerHTML = `<tr><td colspan="7" class="muted">Cargando…</td></tr>`;
-  const { data, error } = await client.from("cod_pred")
-    .select("comunidad,codigo_mtc,cod_prel,titular,unir,prog_ini,comentario_social")
-    .not("comentario_social","is",null);
-  if(error){ tblObs.innerHTML = `<tr><td colspan="7">Error: ${esc(error.message)}</td></tr>`; return; }
-  const rows = (data||[]).filter(r => String(r.comentario_social||"").trim().length>0);
+  if(forceFetch || !cachedPredios.length){
+    await loadAllPredios({ fit: !initialFitCompleted });
+  }
+  if(!cachedPredios.length){
+    tblObs.innerHTML = `<tr><td colspan="7" class="muted">Sin datos disponibles.</td></tr>`;
+    lastObsRows = [];
+    return;
+  }
+  const rows = cachedPredios
+    .filter(hasSocial)
+    .map(p=>(
+      {
+        comunidad:p.comunidad,
+        codigo_mtc:p.codigo_mtc,
+        cod_prel:p.cod_prel,
+        titular:p.titular,
+        unir:p.unir,
+        prog_ini:p.prog_ini,
+        comentario_social:p.comentario_social
+      }
+    ))
+    .sort((a,b)=>{
+      const byCom = (a.comunidad||"").localeCompare(b.comunidad||"", "es", { sensitivity:"base" });
+      if(byCom !== 0) return byCom;
+      return (a.cod_prel||"").localeCompare(b.cod_prel||"", undefined, { numeric:true, sensitivity:"base" });
+    });
   renderObsTable(rows);
   obsFilter.value = "";
 }
 
 function renderObsTable(rows){
-  if(rows.length===0){ tblObs.innerHTML = `<tr><td colspan="7" class="muted">No hay códigos observados.</td></tr>`; return; }
+  if(!Array.isArray(rows) || rows.length===0){
+    lastObsRows = [];
+    tblObs.innerHTML = `<tr><td colspan="7" class="muted">No hay códigos observados.</td></tr>`;
+    return;
+  }
+  lastObsRows = rows.map(r=>({ ...r }));
   tblObs.innerHTML = rows.map(r=>`
     <tr>
       <td>${esc(r.comunidad)}</td>
@@ -653,6 +815,181 @@ function renderObsTable(rows){
     </tr>
   `).join("");
 }
+
+function slugifyFilename(text){
+  return (text??"").toString().trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "datos";
+}
+
+function csvEscape(val){
+  const str = (val??"").toString().replace(/\r?\n/g, " ");
+  const escaped = str.replace(/"/g, '""');
+  return /[";,]/.test(str) ? `"${escaped}"` : escaped;
+}
+
+function buildCsv(headers, rows){
+  const head = headers.map(h=>csvEscape(h.label)).join(",");
+  const body = rows.map(row=> headers.map(h=>{
+    const value = typeof h.getter === "function" ? h.getter(row) : row[h.key];
+    return csvEscape(value);
+  }).join(",")).join("\r\n");
+  return `\uFEFF${head}` + (body ? `\r\n${body}` : "");
+}
+
+function downloadBlob(filename, content, mime){
+  const blob = new Blob([content], { type:mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); link.remove(); }, 0);
+}
+
+function xmlEscape(str){
+  return (str??"").toString().replace(/[<>&"']/g, m=>({"<":"&lt;",">":"&gt;","&":"&amp;","\"":"&quot;","'":"&apos;"}[m]||m));
+}
+
+function coordsToString(coords){
+  return coords.map(c=>{
+    const lon = c[0]??0;
+    const lat = c[1]??0;
+    const alt = c[2]??0;
+    return `${lon},${lat},${alt}`;
+  }).join(" ");
+}
+
+function closeRing(ring){
+  if(!ring?.length) return [];
+  const first = ring[0];
+  const last = ring[ring.length-1];
+  if(first[0]===last[0] && first[1]===last[1]) return ring.slice();
+  return [...ring, first];
+}
+
+function polygonToKml(coords){
+  if(!Array.isArray(coords) || !coords.length) return "";
+  return `<Polygon>` + coords.map((ring, idx)=>{
+    const points = coordsToString(closeRing(ring));
+    if(!points) return "";
+    const tag = idx===0 ? "outerBoundaryIs" : "innerBoundaryIs";
+    return `<${tag}><LinearRing><coordinates>${points}</coordinates></LinearRing></${tag}>`;
+  }).join("") + `</Polygon>`;
+}
+
+function lineStringToKml(coords){
+  if(!Array.isArray(coords) || !coords.length) return "";
+  return `<LineString><coordinates>${coordsToString(coords)}</coordinates></LineString>`;
+}
+
+function geometryToKml(geom){
+  if(!geom) return "";
+  const type = geom.type;
+  const coords = geom.coordinates;
+  switch(type){
+    case "Point":
+      return `<Point><coordinates>${coordsToString([coords])}</coordinates></Point>`;
+    case "MultiPoint":
+      return `<MultiGeometry>${coords.map(pt=>`<Point><coordinates>${coordsToString([pt])}</coordinates></Point>`).join("")}</MultiGeometry>`;
+    case "LineString":
+      return lineStringToKml(coords);
+    case "MultiLineString":
+      return `<MultiGeometry>${coords.map(line=>lineStringToKml(line)).filter(Boolean).join("")}</MultiGeometry>`;
+    case "Polygon":
+      return polygonToKml(coords);
+    case "MultiPolygon":
+      return `<MultiGeometry>${coords.map(poly=>polygonToKml(poly)).filter(Boolean).join("")}</MultiGeometry>`;
+    case "GeometryCollection":
+      return `<MultiGeometry>${(geom.geometries||[]).map(g=>geometryToKml(g)).filter(Boolean).join("")}</MultiGeometry>`;
+    default:
+      return "";
+  }
+}
+
+function wrapCdata(text){
+  return (text??"").replace(/]]>/g, "]]]><![CDATA[>");
+}
+
+function buildObservedKml(rows){
+  const placemarks = rows.map(row=>{
+    const base = cachedPrediosMap.get(row.cod_prel);
+    const geom = base?.geom;
+    const geomMarkup = geometryToKml(geom);
+    if(!geomMarkup) return "";
+    const description = [
+      row.comunidad ? `<p><strong>Comunidad:</strong> ${esc(row.comunidad)}</p>` : "",
+      row.codigo_mtc ? `<p><strong>Código MTC:</strong> ${esc(row.codigo_mtc)}</p>` : "",
+      row.prog_ini ? `<p><strong>prog_ini:</strong> ${esc(row.prog_ini)}</p>` : "",
+      row.comentario_social ? `<p><strong>Comentario social:</strong> ${esc(row.comentario_social)}</p>` : ""
+    ].join("");
+    const extended = `
+      <ExtendedData>
+        <Data name="comunidad"><value>${xmlEscape(row.comunidad||"")}</value></Data>
+        <Data name="codigo_mtc"><value>${xmlEscape(row.codigo_mtc||"")}</value></Data>
+        <Data name="cod_prel"><value>${xmlEscape(row.cod_prel||"")}</value></Data>
+        <Data name="prog_ini"><value>${xmlEscape(row.prog_ini||"")}</value></Data>
+        <Data name="comentario_social"><value>${xmlEscape(row.comentario_social||"")}</value></Data>
+      </ExtendedData>`;
+    return `<Placemark>
+      <name>${xmlEscape(row.cod_prel||"Sin código")}</name>
+      ${extended}
+      <description><![CDATA[${wrapCdata(description)}]]></description>
+      ${geomMarkup}
+    </Placemark>`;
+  }).filter(Boolean).join("\n    ");
+  if(!placemarks) return "";
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n  <Document>\n    ${placemarks}\n  </Document>\n</kml>`;
+}
+
+btnExportList?.addEventListener("click", ()=>{
+  if(!lastListRows.length){
+    alert("Genera primero la lista por comunidad.");
+    return;
+  }
+  const headers = [
+    { label:"Comunidad", key:"comunidad" },
+    { label:"Código MTC", key:"codigo_mtc" },
+    { label:"cod_prel", key:"cod_prel" },
+    { label:"Titular", key:"titular" },
+    { label:"prog_ini", key:"prog_ini" }
+  ];
+  const csv = buildCsv(headers, lastListRows);
+  const slug = slugifyFilename(listComunidad.value || "comunidad");
+  downloadBlob(`lista_${slug}.csv`, csv, "text/csv;charset=utf-8;");
+});
+
+btnExportObsXls?.addEventListener("click", ()=>{
+  if(!lastObsRows.length){
+    alert("No hay observados para exportar.");
+    return;
+  }
+  const headers = [
+    { label:"Comunidad", key:"comunidad" },
+    { label:"Código MTC", key:"codigo_mtc" },
+    { label:"cod_prel", key:"cod_prel" },
+    { label:"Titular", key:"titular" },
+    { label:"prog_ini", key:"prog_ini" },
+    { label:"Comentario social", key:"comentario_social" }
+  ];
+  const csv = buildCsv(headers, lastObsRows);
+  downloadBlob("observados.csv", csv, "text/csv;charset=utf-8;");
+});
+
+btnExportObsKml?.addEventListener("click", ()=>{
+  if(!lastObsRows.length){
+    alert("No hay observados para exportar.");
+    return;
+  }
+  const kml = buildObservedKml(lastObsRows);
+  if(!kml){
+    alert("No se pudo generar el archivo KML.");
+    return;
+  }
+  downloadBlob("observados.kml", kml, "application/vnd.google-earth.kml+xml");
+});
 
 // selección desde observados
 document.getElementById("tblObs").addEventListener("click", async (e)=>{
@@ -700,8 +1037,14 @@ document.getElementById("tblObs").addEventListener("click", async (e)=>{
 
 /** ====== INIT ====== **/
 (async function init(){
-  await hydrateCommunityOptions();
-  await loadAllPredios();
+  populateCommunityOptions([]);
+  const cached = loadPrediosCache();
+  if(Array.isArray(cached) && cached.length){
+    initialFitCompleted = false;
+    applyPredioRows(cached, { fitBounds:true });
+  }
+  await bootExtraLayers();
+  await loadAllPredios({ fit: !initialFitCompleted });
 })();
 </script>
 </body>

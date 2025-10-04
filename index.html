@@ -406,7 +406,7 @@ function ensureLayerDetached(layer){
 async function bootExtraLayers(){
   const configs = [
     { path:"capas/comunidades.js", keys:["CAPA_COMUNIDADES","capaComunidades","comunidadesLayer","comunidadesGeojson","comunidades","CAPA_comunidades"], name:"Comunidades (GeoJSON)", style:commStyle },
-    { path:"capas/derecho_via.js", keys:["CAPA_DERECHO_VIA","capaDerechoVia","derechoViaLayer","derechoViaGeojson","derecho_via","derechoVia"], name:"Derecho de vía", style:viaStyle }
+    { path:"capas/derecho_de_via.js", keys:["CAPA_DERECHO_VIA","capaDerechoVia","derechoViaLayer","derechoViaGeojson","derecho_via","derechoVia","derecho_de_via"], name:"Derecho de vía", style:viaStyle }
   ];
   for(const cfg of configs){
     const payload = await loadExternalGeoJSON(cfg.path, cfg.keys);
